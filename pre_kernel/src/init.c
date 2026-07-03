@@ -1,6 +1,7 @@
 #include <arch.h>
 #include <boot/boot.h>
 #include <boot/core.h>
+#include <init.h>
 #include <lib/helpers.h>
 #include <lib/math.h>
 #include <loader/elfldr.h>

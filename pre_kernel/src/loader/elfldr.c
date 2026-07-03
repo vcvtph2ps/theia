@@ -79,7 +79,7 @@ typedef struct {
 #define PFLAGS_READ (1 << 2)
 #define PTYPE_NOTE 4
 
-bool elf_supported(const elf64_elf_header_t* elf_header) {
+static bool elf_supported(const elf64_elf_header_t* elf_header) {
     if(!elf_header) { return false; }
     if(elf_header->e_ident[0] != 0x7f || elf_header->e_ident[1] != 'E' || elf_header->e_ident[2] != 'L' || elf_header->e_ident[3] != 'F') { return false; }
     if(elf_header->e_ident[ELF_CLASS_IDX] != ELF_CLASS_64_BIT) { return false; }
@@ -92,7 +92,7 @@ bool elf_supported(const elf64_elf_header_t* elf_header) {
 extern uint8_t _binary_kernel_elf_start[]; // NOLINT
 extern uint8_t _binary_kernel_elf_end[]; // NOLINT
 
-void internal_elf_handle_pt_load(elf64_program_header_t* phdr, elfldr_loader_info_t* loader_info) {
+static void internal_elf_handle_pt_load(elf64_program_header_t* phdr, elfldr_loader_info_t* loader_info) {
     uint64_t flags = 0;
 
     if(phdr->p_flags & PFLAGS_READ) { flags |= BOOTINFO_SEGMENT_FLAG_READ; }
@@ -124,7 +124,7 @@ void internal_elf_handle_pt_load(elf64_program_header_t* phdr, elfldr_loader_inf
     if(loader_info->kernel_base > phdr->p_vaddr) { loader_info->kernel_base = phdr->p_vaddr; }
 }
 
-bool internal_elf_load_image(elfldr_loader_info_t* loader_info) {
+static bool internal_elf_load_image(elfldr_loader_info_t* loader_info) {
     // cache phdrs so we don't have to read them multiple times
     elf64_elf_header_t* elf_header = (elf64_elf_header_t*) _binary_kernel_elf_start;
 

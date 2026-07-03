@@ -1,5 +1,6 @@
 #include <boot/boot.h>
 #include <boot/core.h>
+#include <init.h>
 #include <lib/math.h>
 #include <log.h>
 #include <memory/pmm.h>
@@ -11,20 +12,20 @@
 #include <stdint.h>
 #include <tartarus.h>
 
-[[noreturn]] void prekernel_init(bootinfo_t* boot_info);
-[[noreturn]] void prekernel_init_ap(core_start_info_t* boot_info);
-
 static tartarus_boot_info_t* g_tartarus_boot_info;
 
-bool tartarus_core_is_bsp(uint64_t tartarus_core_index) {
+static bool tartarus_core_is_bsp(uint64_t tartarus_core_index) {
     return (g_tartarus_boot_info->cpus[tartarus_core_index].flags & TARTARUS_CPU_FLAG_IS_BSP) != 0;
 }
 
 __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer bug
-void tartarus_start_ap(uint64_t tartarus_core_index, core_start_info_t* boot_info) {
+static void tartarus_start_ap(uint64_t tartarus_core_index, core_start_info_t* boot_info) {
     *g_tartarus_boot_info->cpus[tartarus_core_index].argument = (uint64_t) boot_info;
     *g_tartarus_boot_info->cpus[tartarus_core_index].park_address = (uintptr_t) prekernel_init_ap; // @note: this can be used directly since tartarus just passes argument in rdi
 }
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
 
 __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer bug
 [[noreturn]] void prekernel_entry_tartarus(tartarus_boot_info_t* tartarus_boot_info, uint16_t version) {
@@ -115,3 +116,5 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
     prekernel_init(boot_info);
     while(1);
 }
+
+#pragma clang diagnostic pop

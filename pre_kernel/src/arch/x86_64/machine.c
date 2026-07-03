@@ -17,7 +17,7 @@
 #define PAT_WRITE_BACK 6ULL
 #define PAT_UNCACHED 7ULL
 
-void setup_page_table_attributes() {
+static void setup_page_table_attributes() {
     uint8_t pat0 = PAT_WRITE_BACK;
     uint8_t pat1 = PAT_WRITE_THROUGH;
     uint8_t pat2 = PAT_UNCACHED;

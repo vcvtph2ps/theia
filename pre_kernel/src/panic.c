@@ -1,4 +1,5 @@
 #include <log.h>
+#include <panic.h>
 #include <stdarg.h>
 
 [[noreturn]] void panic(const char* format, ...) {

@@ -6,6 +6,10 @@
 #include <uacpi/tables.h>
 #include <uacpi/types.h>
 #include <uacpi/uacpi.h>
+void parse_isa_string(const char* isa_str);
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
 
 size_t arch_acpi_detect_mmu_levels() {
     if(!g_globals_boot_info->rdsp_physical) { return 0; }
@@ -53,8 +57,6 @@ size_t arch_acpi_detect_mmu_levels() {
     return 0;
 }
 
-void parse_isa_string(const char* isa_str);
-
 bool arch_acpi_parse_extentions() {
     if(!g_globals_boot_info->rdsp_physical) { return 0; }
     uacpi_table rhct_table;
@@ -85,3 +87,5 @@ bool arch_acpi_parse_extentions() {
 
     return true;
 }
+
+#pragma clang diagnostic pop

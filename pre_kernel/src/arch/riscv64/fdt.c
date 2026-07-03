@@ -8,6 +8,11 @@
 #include <protocol/bootinfo.h>
 #include <runtime/mem.h>
 
+void parse_isa_string(const char* isa_str);
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+
 size_t arch_fdt_detect_mmu_levels() {
     if(!g_globals_boot_info || g_globals_boot_info->dtb_physical == 0) {
         log_print("fdt: no DTB provided in boot info\n");
@@ -57,8 +62,6 @@ size_t arch_fdt_detect_mmu_levels() {
     return 0;
 }
 
-void parse_isa_string(const char* isa_str);
-
 bool arch_fdt_parse_extentions() {
     const void* fdt = (const void*) (g_globals_boot_info->dtb_physical + g_globals_boot_info->hhdm_offset);
 
@@ -101,3 +104,4 @@ bool arch_fdt_parse_extentions() {
 
     return true;
 }
+#pragma clang diagnostic pop

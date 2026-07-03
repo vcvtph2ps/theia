@@ -160,7 +160,11 @@ table.extend(kernel_flags, {
     "-Wno-gnu-statement-expression-from-macro-expansion",
     "-Wno-error=unused-function",
     "-Wno-extra-semi",
-    "-Wno-empty-translation-unit"
+    "-Wno-empty-translation-unit",
+    "-Wno-error=unused-function",
+    "-Wmissing-prototypes",
+    "-Wdocumentation",
+    "-Wmissing-noreturn",
 })
 
 local linker_script = fab.def_source("support/" .. opt_arch .. ".lds")

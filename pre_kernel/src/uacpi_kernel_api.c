@@ -21,7 +21,7 @@ void uacpi_kernel_unmap(void* addr, uacpi_size length) {
     (void) length;
 }
 
-void uacpi_kernel_vlog(uacpi_log_level level, const uacpi_char* fmt, uacpi_va_list args) {
+static void uacpi_kernel_vlog(uacpi_log_level level, const uacpi_char* fmt, uacpi_va_list args) {
     switch(level) {
         case UACPI_LOG_ERROR: log_print("uacpi error: "); break;
         case UACPI_LOG_WARN:  log_print("uacpi warn: "); break;

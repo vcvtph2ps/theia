@@ -5,6 +5,9 @@
 #include <runtime/mem.h>
 #include <stddef.h>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+
 void parse_isa_string(const char* isa_string) {
     size_t isa_len = strlen(isa_string);
     size_t isa_string_len = 0;
@@ -61,3 +64,5 @@ void parse_isa_string(const char* isa_string) {
     g_globals_boot_info->riscv_extension_count = ext_index;
     g_globals_boot_info->riscv_extentions = (char*(*) []) extensions;
 }
+
+#pragma clang diagnostic pop

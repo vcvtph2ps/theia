@@ -1,4 +1,5 @@
 #pragma once
+#include <arch.h>
 #include <boot/core.h>
 #include <stdint.h>
 

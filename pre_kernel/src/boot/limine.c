@@ -1,5 +1,6 @@
 #include <boot/boot.h>
 #include <boot/core.h>
+#include <init.h>
 #include <lib/math.h>
 #include <limine.h>
 #include <log.h>
@@ -11,11 +12,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-
-[[noreturn]] void prekernel_init(bootinfo_t* boot_info);
-[[noreturn]] void prekernel_init_ap(core_start_info_t* boot_info);
-
-[[noreturn]] void limine_ap_entry(struct limine_mp_info* mp_info) {
+[[noreturn]] static void limine_ap_entry(struct limine_mp_info* mp_info) {
     prekernel_init_ap((core_start_info_t*) mp_info->extra_argument);
 }
 
@@ -64,7 +61,7 @@ LIMINE_REQUEST volatile uint64_t g_limine_base_revision[] = LIMINE_BASE_REVISION
 [[gnu::used, gnu::section(".limine_requests_end")]] volatile uint64_t g_limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
 
-bool limine_core_is_bsp(uint64_t limine_core_index) {
+static bool limine_core_is_bsp(uint64_t limine_core_index) {
 #ifdef __ARCH_X86_64__
     return (g_mp_request.response->cpus[limine_core_index]->lapic_id == g_mp_request.response->bsp_lapic_id);
 #elif defined(__ARCH_RISCV64__)
@@ -72,11 +69,12 @@ bool limine_core_is_bsp(uint64_t limine_core_index) {
 #endif
 }
 
-void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_info) {
+static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_info) {
     g_mp_request.response->cpus[limine_core_index]->extra_argument = (uint64_t) boot_info;
     g_mp_request.response->cpus[limine_core_index]->goto_address = limine_ap_entry;
 }
-
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
 [[noreturn]] void prekernel_entry_limine() {
     if(LIMINE_LOADED_BASE_REVISION_VALID(g_limine_base_revision)) {
         log_print("Booted via limine protocol version %ld", LIMINE_LOADED_BASE_REVISION(g_limine_base_revision));
@@ -191,3 +189,4 @@ void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_info) {
     prekernel_init(boot_info);
     while(1);
 }
+#pragma clang diagnostic pop

@@ -1,3 +1,4 @@
+#include <arch.h>
 #include <arch/csr.h>
 #include <arch/machine.h>
 #include <boot/core.h>
