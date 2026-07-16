@@ -45,7 +45,7 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
 [[noreturn]] void prekernel_init(bootinfo_t* boot_info) {
     g_globals_boot_info = boot_info;
     arch_init_early();
-
+    log_framebuffer_init();
     log_print("Hai :333\n");
 
     size_t physical_memory_size = 0;
@@ -74,8 +74,8 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
     log_print("Kernel cpu local size: %zu\n", kernel_image_info.kernel_info->cpu_local_size);
     log_print("Kernel pagedb entry size: %zu\n", kernel_image_info.kernel_info->pagedb_entry_size);
 
-    size_t hhdm_size = boot_info->hhdm_size;
-    for(size_t i = 0; i < g_pmm_map_size; i++) hhdm_size = MATH_MAX(hhdm_size, g_pmm_map[i].base + g_pmm_map[i].length);
+    size_t hhdm_size = 0;
+    for(size_t i = 0; i < g_pmm_map_size; i++) { hhdm_size = MATH_MAX(hhdm_size, g_pmm_map[i].base + g_pmm_map[i].length); }
     boot_info->hhdm_size = hhdm_size;
 
     uintptr_t pfndb_start;
@@ -92,6 +92,14 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
     arch_setup_cpus(start_info_block, boot_info->core_count, kernel_image_info.kernel_info);
 
     ptm_create_hhdm_mappings();
+
+    if(boot_info->framebuffer_count > 0) {
+        for(size_t i = 0; i < boot_info->framebuffer_count; i++) {
+            bootinfo_framebuffer_t* fb = &boot_info->framebuffers[i];
+            if(fb->paddr < boot_info->hhdm_offset || fb->paddr + fb->size > boot_info->hhdm_offset + boot_info->hhdm_size) { ptm_map(fb->paddr + boot_info->hhdm_offset, fb->paddr, fb->size, PTM_FLAG_READ | PTM_FLAG_WRITE); }
+        }
+    }
+
     arch_prepare_handoff();
 
     size_t pmm_map_entries = g_pmm_map_size;

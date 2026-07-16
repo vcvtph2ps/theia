@@ -62,10 +62,12 @@ LIMINE_REQUEST volatile uint64_t g_limine_base_revision[] = LIMINE_BASE_REVISION
 
 
 static bool limine_core_is_bsp(uint64_t limine_core_index) {
-#ifdef __ARCH_X86_64__
+#if defined(__ARCH_X86_64__)
     return (g_mp_request.response->cpus[limine_core_index]->lapic_id == g_mp_request.response->bsp_lapic_id);
 #elif defined(__ARCH_RISCV64__)
     return (g_mp_request.response->cpus[limine_core_index]->hartid == g_mp_request.response->bsp_hartid);
+#else
+#error "Unknown architecture"
 #endif
 }
 
@@ -75,7 +77,7 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
 }
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-prototypes"
-[[noreturn]] void prekernel_entry_limine() {
+[[noreturn, gnu::used]] void prekernel_entry_limine() {
     if(LIMINE_LOADED_BASE_REVISION_VALID(g_limine_base_revision)) {
         log_print("Booted via limine protocol version %ld", LIMINE_LOADED_BASE_REVISION(g_limine_base_revision));
     } else {

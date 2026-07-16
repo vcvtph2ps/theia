@@ -38,7 +38,7 @@ typedef struct {
 #define EMACHINE_X86_64 62
 #define EMACHINE_RISCV 243
 
-#ifdef __ARCH_X86_64__
+#if defined(__ARCH_X86_64__)
 #define EMACHINE_EXPECTED EMACHINE_X86_64
 #elif defined(__ARCH_RISCV64__)
 #define EMACHINE_EXPECTED EMACHINE_RISCV

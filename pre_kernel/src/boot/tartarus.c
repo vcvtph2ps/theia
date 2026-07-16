@@ -28,7 +28,7 @@ static void tartarus_start_ap(uint64_t tartarus_core_index, core_start_info_t* b
 #pragma clang diagnostic ignored "-Wmissing-prototypes"
 
 __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer bug
-[[noreturn]] void prekernel_entry_tartarus(tartarus_boot_info_t* tartarus_boot_info, uint16_t version) {
+[[noreturn, gnu::used]] void prekernel_entry_tartarus(tartarus_boot_info_t* tartarus_boot_info, uint16_t version) {
     g_tartarus_boot_info = tartarus_boot_info;
     uint8_t major = version >> 8;
     uint8_t minor = version & 0xff;

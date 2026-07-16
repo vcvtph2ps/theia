@@ -207,7 +207,6 @@ void arch_16550uart_early_setup() {
         return;
     }
 
-    log_print("Serial init\n");
-
     serial_sink('\n', nullptr);
+    log_print("Serial init\n");
 }

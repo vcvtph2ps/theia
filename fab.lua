@@ -46,6 +46,12 @@ if opt_arch == "riscv64" then
     )
 end
 
+local flanterm = fab.git(
+    "flanterm",
+    "https://github.com/Mintsuki/Flanterm.git",
+    "e231edd0e508022521c8233392aabc8ce5c9b242"
+)
+
 local function get_prekernel_objs(kernel_flags)
     local pre_kernel_sources = sources(fab.glob("pre_kernel/src/**/*.c", "!pre_kernel/src/arch/**"))
     table.extend(pre_kernel_sources, sources(fab.glob(path("pre_kernel/src/arch", opt_arch, "**/*.c"))))
@@ -65,6 +71,7 @@ local function get_prekernel_objs(kernel_flags)
 
     table.insert(pre_kernel_include_dirs, c.include_dir(path(fab.build_dir(), limine_protocol.path, "include")))
     table.insert(pre_kernel_include_dirs, c.include_dir(path(fab.build_dir(), tartarus_protocol.path)))
+    table.insert(pre_kernel_include_dirs, c.include_dir(path(fab.build_dir(), flanterm.path, "src")))
 
     if libfdt ~= nil then
         -- we need to include libfdt c files to override libfdt_env.h :/
@@ -146,7 +153,23 @@ elseif opt_bootloader == "tartarus" then
 end
 
 local objects = {}
+local other_flags = {}
+table.extend(other_flags, c_flags)
+table.extend(other_flags, {
+    "-Wall",
+    "-Wextra",
+})
 
+local flanterm_sources = {}
+table.extend(flanterm_sources, sources(fab.glob("src/*.c", { relative_to = flanterm.path })))
+local flanterm_objects = generate(flanterm_sources, {
+    c = function(sources)
+        return clang:generate(sources, c_flags,
+            c.include_dir(path(fab.build_dir(), flanterm.path, "src")))
+    end
+})
+
+table.extend(objects, flanterm_objects)
 local kernel_flags = {}
 table.extend(kernel_flags, c_flags)
 table.extend(kernel_flags, {
