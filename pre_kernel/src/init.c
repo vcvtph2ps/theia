@@ -42,11 +42,18 @@ bootinfo_t* g_globals_boot_info = nullptr;
 
 extern uint8_t _binary_kernel_elf_start[]; // NOLINT
 
+#define ANSI_CLEAR "\x1b[2J"
+#define ANSI_HOME "\x1b[H"
+#define ANSI_RESET "\x1b[0m"
+
 [[noreturn]] void prekernel_init(bootinfo_t* boot_info) {
     g_globals_boot_info = boot_info;
     arch_init_early();
     log_framebuffer_init();
+
+    log_print(ANSI_CLEAR ANSI_HOME ANSI_RESET);
     log_print("Hai :333\n");
+    log_print("Core count: %ld\n", boot_info->core_count);
 
     size_t physical_memory_size = 0;
     for(size_t i = 0; i < g_pmm_map_size; i++) {
@@ -56,6 +63,7 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
     }
     log_print("Total physical memory: %zu bytes\n", physical_memory_size);
 
+    log_print("rsdp: 0x%lx\n", boot_info->rdsp_physical);
     if(boot_info->rdsp_physical) {
         uintptr_t temporary_buffer = (uintptr_t) pmm_alloc(PTM_PAGE_GRANULARITY * 2) + g_globals_boot_info->hhdm_offset;
         uacpi_status status = uacpi_setup_early_table_access((void*) temporary_buffer, PTM_PAGE_GRANULARITY * 2);

@@ -4,7 +4,7 @@
 #include <globals.h>
 #include <log.h>
 #include <nanoprintf/nanoprintf.h>
-
+#include <spinlock.h>
 struct flanterm_context* g_log_framebuffer_context = nullptr;
 
 void log_framebuffer_init() {
@@ -51,27 +51,37 @@ static void putc(int c, void* ctx) {
     }
 }
 
+spinlock_t g_log_lock = SPINLOCK_INIT;
+
 void log_vprint_raw(const char* fmt, va_list val) {
+    spinlock_lock(&g_log_lock);
     npf_vpprintf(putc, nullptr, fmt, val);
+    spinlock_unlock(&g_log_lock);
 }
 
 void log_print_raw(const char* fmt, ...) {
     va_list val;
     va_start(val, fmt);
+    spinlock_lock(&g_log_lock);
     npf_vpprintf(putc, nullptr, fmt, val);
+    spinlock_unlock(&g_log_lock);
     va_end(val);
 }
 
 
 void log_vprint(const char* fmt, va_list val) {
+    spinlock_lock(&g_log_lock);
     npf_vpprintf(putc, nullptr, "prekernel | ", nullptr);
     npf_vpprintf(putc, nullptr, fmt, val);
+    spinlock_unlock(&g_log_lock);
 }
 
 void log_print(const char* fmt, ...) {
     va_list val;
     va_start(val, fmt);
+    spinlock_lock(&g_log_lock);
     npf_vpprintf(putc, nullptr, "prekernel | ", nullptr);
     npf_vpprintf(putc, nullptr, fmt, val);
+    spinlock_unlock(&g_log_lock);
     va_end(val);
 }
