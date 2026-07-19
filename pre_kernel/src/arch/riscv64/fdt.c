@@ -36,6 +36,9 @@ size_t arch_fdt_detect_mmu_levels() {
         const char* devtype = (const char*) fdt_getprop(fdt, node, "device_type", nullptr);
         if(!devtype || strcmp(devtype, "cpu") != 0) { continue; }
 
+        const char* status = (const char*) fdt_getprop(fdt, node, "status", nullptr);
+        if(status && strcmp(status, "okay") != 0 && strcmp(status, "ok") != 0) { continue; }
+
         int len = 0;
         const char* mmu = (const char*) fdt_getprop(fdt, node, "mmu-type", &len);
         if(mmu && len > 0) {
@@ -85,6 +88,9 @@ bool arch_fdt_parse_extentions() {
     fdt_for_each_subnode(node, fdt, cpus_node) {
         const char* compatible = (const char*) fdt_getprop(fdt, node, "device_type", nullptr);
         if(!compatible || strcmp(compatible, "cpu") != 0) { continue; }
+
+        const char* status = (const char*) fdt_getprop(fdt, node, "status", nullptr);
+        if(status && strcmp(status, "okay") != 0 && strcmp(status, "ok") != 0) { continue; }
 
         int len = 0;
         const char* isa = (const char*) fdt_getprop(fdt, node, "riscv,isa", &len);
