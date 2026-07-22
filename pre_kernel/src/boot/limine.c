@@ -150,7 +150,7 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
 
             fb->vaddr = limine_fb->address;
             fb->paddr = ((uintptr_t) limine_fb->address) - g_hhdm_request.response->offset;
-            fb->size = limine_fb->width * limine_fb->height * (limine_fb->bpp / 8);
+            fb->size = limine_fb->pitch * limine_fb->height;
 
             fb->width = limine_fb->width;
             fb->height = limine_fb->height;

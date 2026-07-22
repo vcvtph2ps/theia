@@ -95,7 +95,7 @@ static void map_page(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t
 }
 
 void ptm_map(uint64_t vaddr, uint64_t paddr, uint64_t length, uint8_t flags) {
-    if(paddr % PTM_PAGE_GRANULARITY != 0 || vaddr % PTM_PAGE_GRANULARITY != 0 || length % PTM_PAGE_GRANULARITY != 0) panic("unaligned mapping (%lx -> %lx / %lx)", paddr, vaddr, length);
+    if(paddr % PTM_PAGE_GRANULARITY || vaddr % PTM_PAGE_GRANULARITY || length % PTM_PAGE_GRANULARITY) panic("ptm_map: unaligned (vaddr=0x%lx paddr=0x%lx len=0x%lx)", vaddr, paddr, length);
     if((flags & PTM_FLAG_READ) == 0) log_print("mapping with no read permission\n");
 
     uint64_t offset = 0;
@@ -112,7 +112,7 @@ void ptm_map(uint64_t vaddr, uint64_t paddr, uint64_t length, uint8_t flags) {
 }
 
 void ptm_map_at(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t paddr, uint64_t length, uint8_t flags) {
-    if(paddr % PTM_PAGE_GRANULARITY != 0 || vaddr % PTM_PAGE_GRANULARITY != 0 || length % PTM_PAGE_GRANULARITY != 0) panic("unaligned mapping (%lx -> %lx / %lx)", paddr, vaddr, length);
+    if(paddr % PTM_PAGE_GRANULARITY || vaddr % PTM_PAGE_GRANULARITY || length % PTM_PAGE_GRANULARITY) panic("ptm_map_at: unaligned (vaddr=0x%lx paddr=0x%lx len=0x%lx)", vaddr, paddr, length);
     if((flags & PTM_FLAG_READ) == 0) log_print("mapping with no read permission\n");
 
     uint64_t offset = 0;

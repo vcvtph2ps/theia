@@ -104,7 +104,7 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
     if(boot_info->framebuffer_count > 0) {
         for(size_t i = 0; i < boot_info->framebuffer_count; i++) {
             bootinfo_framebuffer_t* fb = &boot_info->framebuffers[i];
-            if(fb->paddr < boot_info->hhdm_offset || fb->paddr + fb->size > boot_info->hhdm_offset + boot_info->hhdm_size) { ptm_map(fb->paddr + boot_info->hhdm_offset, fb->paddr, fb->size, PTM_FLAG_READ | PTM_FLAG_WRITE); }
+            if(fb->paddr < boot_info->hhdm_offset || fb->paddr + fb->size > boot_info->hhdm_offset + boot_info->hhdm_size) { ptm_map(fb->paddr + boot_info->hhdm_offset, fb->paddr, MATH_ALIGN_UP(fb->size, PTM_PAGE_GRANULARITY), PTM_FLAG_READ | PTM_FLAG_WRITE); }
         }
     }
 
