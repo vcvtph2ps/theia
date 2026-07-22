@@ -52,9 +52,15 @@ LIMINE_REQUEST volatile struct limine_internal_module g_initramfs = {
     .flags = LIMINE_INTERNAL_MODULE_REQUIRED,
 };
 
-LIMINE_REQUEST volatile struct limine_internal_module* g_modules[] = { &g_initramfs };
+LIMINE_REQUEST volatile struct limine_internal_module g_ksym = {
+    .path = "kernel.ksym",
+    .string = "kernel.ksym",
+    .flags = 0,
+};
 
-LIMINE_REQUEST volatile struct limine_module_request g_module_request = { .id = LIMINE_MODULE_REQUEST_ID, .revision = 1, .internal_modules = (struct limine_internal_module**) &g_modules, .internal_module_count = 1 };
+LIMINE_REQUEST volatile struct limine_internal_module* g_modules[] = { &g_initramfs, &g_ksym };
+
+LIMINE_REQUEST volatile struct limine_module_request g_module_request = { .id = LIMINE_MODULE_REQUEST_ID, .revision = 1, .internal_modules = (struct limine_internal_module**) &g_modules, .internal_module_count = 2 };
 
 LIMINE_REQUEST volatile uint64_t g_limine_base_revision[] = LIMINE_BASE_REVISION(6);
 [[gnu::used, gnu::section(".limine_requests_start")]] volatile uint64_t g_limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
@@ -173,17 +179,20 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
 
     boot_info->module_count = g_module_request.response->module_count;
     boot_info->modules = (bootinfo_module_t*) boot_info_block_pointer;
+    uintptr_t module_name_block = boot_info_block_pointer + sizeof(bootinfo_module_t) * g_module_request.response->module_count;
+
     for(size_t i = 0; i < g_module_request.response->module_count; i++) {
         bootinfo_module_t* module = (bootinfo_module_t*) boot_info_block_pointer;
         struct limine_file* limine_module = g_module_request.response->modules[i];
 
-        module->name = (char*) boot_info_block_pointer + sizeof(bootinfo_module_t);
-        memcpy((void*) module->name, limine_module->path, strlen(limine_module->path) + 1);
-        boot_info_block_pointer += sizeof(bootinfo_module_t) + strlen(limine_module->path) + 1;
-
+        module->name = (char*) module_name_block;
         module->phys_addr = (uintptr_t) pmm_alloc(MATH_ALIGN_UP(limine_module->size, PTM_PAGE_GRANULARITY) / PTM_PAGE_GRANULARITY);
         module->size = limine_module->size;
+        memcpy((void*) module->name, limine_module->path, strlen(limine_module->path) + 1);
         memcpy((void*) (module->phys_addr + g_hhdm_request.response->offset), (void*) limine_module->address, limine_module->size);
+
+        boot_info_block_pointer += sizeof(bootinfo_module_t);
+        module_name_block += strlen(limine_module->path) + 1;
     }
 
     g_boot_core_is_bsp = limine_core_is_bsp;

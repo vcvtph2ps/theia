@@ -98,16 +98,20 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
 
     boot_info->module_count = tartarus_boot_info->module_count;
     boot_info->modules = (bootinfo_module_t*) boot_info_block_pointer;
+
+    uintptr_t module_name_block = boot_info_block_pointer + sizeof(bootinfo_module_t) * tartarus_boot_info->module_count;
+
     for(size_t i = 0; i < tartarus_boot_info->module_count; i++) {
         bootinfo_module_t* module = (bootinfo_module_t*) boot_info_block_pointer;
         tartarus_module_t* tartarus_module = &g_tartarus_boot_info->modules[i];
 
-        module->name = (char*) boot_info_block_pointer + sizeof(bootinfo_module_t);
+        module->name = (char*) module_name_block;
         memcpy((void*) module->name, tartarus_module->name, strlen(tartarus_module->name) + 1);
-        boot_info_block_pointer += sizeof(bootinfo_module_t) + strlen(tartarus_module->name) + 1;
-
         module->phys_addr = tartarus_module->paddr;
         module->size = tartarus_module->size;
+
+        boot_info_block_pointer += sizeof(bootinfo_module_t);
+        module_name_block += strlen(tartarus_module->name) + 1;
     }
 
     g_boot_start_ap = tartarus_start_ap;
