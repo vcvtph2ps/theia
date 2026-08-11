@@ -106,9 +106,11 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
         tartarus_module_t* tartarus_module = &g_tartarus_boot_info->modules[i];
 
         module->name = (char*) module_name_block;
-        memcpy((void*) module->name, tartarus_module->name, strlen(tartarus_module->name) + 1);
-        module->phys_addr = tartarus_module->paddr;
+        module->phys_addr = (uintptr_t) pmm_alloc_ext(MATH_ALIGN_UP(tartarus_module->size, PTM_PAGE_GRANULARITY) / PTM_PAGE_GRANULARITY, PTM_PAGE_GRANULARITY, PMM_MAP_TYPE_MODULE);
         module->size = tartarus_module->size;
+
+        memcpy((void*) module->name, tartarus_module->name, strlen(tartarus_module->name) + 1);
+        memcpy((void*) (module->phys_addr + tartarus_boot_info->hhdm_offset), (void*) (tartarus_module->paddr + tartarus_boot_info->hhdm_offset), tartarus_module->size);
 
         boot_info_block_pointer += sizeof(bootinfo_module_t);
         module_name_block += strlen(tartarus_module->name) + 1;

@@ -104,7 +104,9 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
     if(boot_info->framebuffer_count > 0) {
         for(size_t i = 0; i < boot_info->framebuffer_count; i++) {
             bootinfo_framebuffer_t* fb = &boot_info->framebuffers[i];
-            if(fb->paddr < boot_info->hhdm_offset || fb->paddr + fb->size > boot_info->hhdm_offset + boot_info->hhdm_size) { ptm_map(fb->paddr + boot_info->hhdm_offset, fb->paddr, MATH_ALIGN_UP(fb->size, PTM_PAGE_GRANULARITY), PTM_FLAG_READ | PTM_FLAG_WRITE); }
+            if(fb->paddr < boot_info->hhdm_offset || fb->paddr + fb->size > boot_info->hhdm_offset + boot_info->hhdm_size) {
+                ptm_map(fb->paddr + boot_info->hhdm_offset, fb->paddr, MATH_ALIGN_UP(fb->size, PTM_PAGE_GRANULARITY), PTM_FLAG_READ | PTM_FLAG_WRITE);
+            }
         }
     }
 
@@ -135,6 +137,7 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
             case PMM_MAP_TYPE_EFI_RECLAIMABLE:        [[fallthrough]];
             case PMM_MAP_TYPE_FREE:                   type = BOOTINFO_MM_TYPE_USABLE; break;
             case PMM_MAP_TYPE_ALLOCATED:              type = BOOTINFO_MM_TYPE_RECLAIMABLE; break;
+            case PMM_MAP_TYPE_MODULE:                 type = BOOTINFO_MM_TYPE_MODULE; break;
             case PMM_MAP_TYPE_USED:                   type = BOOTINFO_MM_TYPE_USED; break;
             case PMM_MAP_TYPE_ACPI_RECLAIMABLE:       type = BOOTINFO_MM_TYPE_ACPI_RECLAIMABLE; break;
             case PMM_MAP_TYPE_ACPI_NVS:               type = BOOTINFO_MM_TYPE_ACPI_NVS; break;

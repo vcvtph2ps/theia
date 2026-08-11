@@ -60,6 +60,9 @@ typedef enum : uint64_t {
     /// Usable but currently used memory by the kernel or prekernel
     BOOTINFO_MM_TYPE_USED,
 
+    /// Usable memory used by modules that the kernel can take back once it's done with it
+    BOOTINFO_MM_TYPE_MODULE,
+
     /// Usable memory used by the prekernel that the kernel can take back once it's done with it
     BOOTINFO_MM_TYPE_RECLAIMABLE,
 

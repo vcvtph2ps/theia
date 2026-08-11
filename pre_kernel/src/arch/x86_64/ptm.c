@@ -132,17 +132,7 @@ void ptm_create_hhdm_mappings() {
     pmm_map_snapshot_t snapshot = pmm_create_snapshot();
 
     for(size_t i = 0; i < snapshot.count; i++) {
-        switch(snapshot.entries[i].type) {
-            case PMM_MAP_TYPE_FREE:
-            case PMM_MAP_TYPE_USED:
-            case PMM_MAP_TYPE_ALLOCATED:
-            case PMM_MAP_TYPE_BOOTLOADER_RECLAIMABLE:
-            case PMM_MAP_TYPE_EFI_RECLAIMABLE:
-            case PMM_MAP_TYPE_ACPI_RECLAIMABLE:
-            case PMM_MAP_TYPE_ACPI_NVS:
-            case PMM_MAP_TYPE_RESERVED:               break;
-            default:                                  continue;
-        }
+        if(snapshot.entries[i].type == PMM_MAP_TYPE_BAD) continue;
 
         uint64_t base = snapshot.entries[i].base;
         uint64_t length = snapshot.entries[i].length;

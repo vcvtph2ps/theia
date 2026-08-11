@@ -188,6 +188,7 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
         module->name = (char*) module_name_block;
         module->phys_addr = (uintptr_t) pmm_alloc(MATH_ALIGN_UP(limine_module->size, PTM_PAGE_GRANULARITY) / PTM_PAGE_GRANULARITY);
         module->size = limine_module->size;
+
         memcpy((void*) module->name, limine_module->path, strlen(limine_module->path) + 1);
         memcpy((void*) (module->phys_addr + g_hhdm_request.response->offset), (void*) limine_module->address, limine_module->size);
 
