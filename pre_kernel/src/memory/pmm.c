@@ -179,3 +179,20 @@ void pmm_free(void* address, size_t page_count) {
 void pmm_free_snapshot(pmm_map_snapshot_t* map) {
     pmm_free(map->allocation.phys, map->allocation.bytes / PTM_PAGE_GRANULARITY);
 }
+
+
+const char* pmm_entry_type_to_string(pmm_map_type_t type) {
+    switch(type) {
+        case PMM_MAP_TYPE_FREE: return "free";
+        case PMM_MAP_TYPE_ALLOCATED: return "allocated";
+        case PMM_MAP_TYPE_USED: return "used";
+        case PMM_MAP_TYPE_BOOTLOADER_RECLAIMABLE: return "bootloader reclaimable";
+        case PMM_MAP_TYPE_MODULE: return "module";
+        case PMM_MAP_TYPE_EFI_RECLAIMABLE: return "efi reclaimable";
+        case PMM_MAP_TYPE_ACPI_RECLAIMABLE: return "acpi reclaimable";
+        case PMM_MAP_TYPE_ACPI_NVS: return "acpi nvs";
+        case PMM_MAP_TYPE_RESERVED: return "reserved";
+        case PMM_MAP_TYPE_BAD: return "bad";
+        default: return "??";
+    }
+}

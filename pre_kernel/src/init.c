@@ -58,7 +58,7 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
     size_t physical_memory_size = 0;
     for(size_t i = 0; i < g_pmm_map_size; i++) {
         pmm_map_entry_t* entry = &g_pmm_map[i];
-        log_print("pmm_entry[%zu]: base=0x%016lx, length=0x%016lx, type=%u\n", i, entry->base, entry->length, entry->type);
+        log_print("pmm_entry[%zu]: base=0x%016lx, length=0x%016lx, type=%s (%u)\n", i, entry->base, entry->length, pmm_entry_type_to_string(entry->type), entry->type);
         physical_memory_size += entry->length;
     }
     log_print("Total physical memory: %zu bytes\n", physical_memory_size);
