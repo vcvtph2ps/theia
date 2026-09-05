@@ -18,11 +18,16 @@ static bool tartarus_core_is_bsp(uint64_t tartarus_core_index) {
     return (g_tartarus_boot_info->cpus[tartarus_core_index].flags & TARTARUS_CPU_FLAG_IS_BSP) != 0;
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Waddress-of-packed-member"
 __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer bug
 static void tartarus_start_ap(uint64_t tartarus_core_index, core_start_info_t* boot_info) {
-    *g_tartarus_boot_info->cpus[tartarus_core_index].argument = (uint64_t) boot_info;
-    *g_tartarus_boot_info->cpus[tartarus_core_index].park_address = (uintptr_t) prekernel_init_ap; // @note: this can be used directly since tartarus just passes argument in rdi
+    tartarus_cpu_t* cpu = &g_tartarus_boot_info->cpus[tartarus_core_index];
+    __atomic_store_n(cpu->argument, (uint64_t) boot_info, __ATOMIC_SEQ_CST);
+    // @note: this can be used directly since tartarus just passes argument in rdi
+    __atomic_store_n(cpu->park_address, (uintptr_t) prekernel_init_ap, __ATOMIC_SEQ_CST); 
 }
+#pragma clang diagnostic pop
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-prototypes"

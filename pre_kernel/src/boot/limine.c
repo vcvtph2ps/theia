@@ -78,9 +78,11 @@ static bool limine_core_is_bsp(uint64_t limine_core_index) {
 }
 
 static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_info) {
-    g_mp_request.response->cpus[limine_core_index]->extra_argument = (uint64_t) boot_info;
-    g_mp_request.response->cpus[limine_core_index]->goto_address = limine_ap_entry;
+    struct limine_mp_info* cpu = g_mp_request.response->cpus[limine_core_index];
+    __atomic_store_n(&cpu->extra_argument, (uint64_t) boot_info, __ATOMIC_SEQ_CST);
+    __atomic_store_n(&cpu->goto_address, limine_ap_entry, __ATOMIC_SEQ_CST);
 }
+
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-prototypes"
 [[noreturn, gnu::used]] void prekernel_entry_limine() {
