@@ -98,6 +98,9 @@ typedef struct [[gnu::packed]] {
     uintptr_t pfndb_start;
     uintptr_t pfndb_size;
 
+    uintptr_t pfndb_bitmap_start;
+    uintptr_t pfndb_bitmap_size;
+
     uintptr_t cpulocal_start;
     uintptr_t cpulocal_size;
 

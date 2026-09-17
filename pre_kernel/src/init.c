@@ -88,9 +88,13 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
 
     uintptr_t pfndb_start;
     size_t pfndb_size;
-    pagedb_setup(kernel_image_info.kernel_base, kernel_image_info.kernel_info->pagedb_entry_size, &pfndb_start, &pfndb_size);
+    uintptr_t pfndb_bitmap_start;
+    size_t pfndb_bitmap_size;
+    pagedb_setup(kernel_image_info.kernel_base, kernel_image_info.kernel_info->pagedb_entry_size, &pfndb_start, &pfndb_size, &pfndb_bitmap_start, &pfndb_bitmap_size);
     boot_info->pfndb_start = pfndb_start;
     boot_info->pfndb_size = pfndb_size;
+    boot_info->pfndb_bitmap_start = pfndb_bitmap_start;
+    boot_info->pfndb_bitmap_size = pfndb_bitmap_size;
 
     // Allocate per core start info block
     size_t start_info_block_size = MATH_ALIGN_UP(sizeof(core_start_info_t) * boot_info->core_count, PTM_PAGE_GRANULARITY);
