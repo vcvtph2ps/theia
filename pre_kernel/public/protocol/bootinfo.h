@@ -92,6 +92,9 @@ typedef struct [[gnu::packed]] {
     // @note: can be 0 if not provided
     uintptr_t rdsp_physical;
 
+    // @note: can be 0 if not provided.
+    uintptr_t dtb_physical;
+
     uintptr_t hhdm_offset;
     uintptr_t hhdm_size;
 
@@ -120,9 +123,6 @@ typedef struct [[gnu::packed]] {
     char* riscv_base_isa_string;
     size_t riscv_extension_count;
     char* (*riscv_extentions)[];
-
-    // @note: can be 0 if not provided.
-    uintptr_t dtb_physical;
 #endif
 } bootinfo_t;
 

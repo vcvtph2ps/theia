@@ -70,8 +70,20 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
     bootinfo_t* boot_info = (bootinfo_t*) ((uintptr_t) pmm_alloc(boot_info_block_size / PTM_PAGE_GRANULARITY) + tartarus_boot_info->hhdm_offset);
     boot_info->core_count = tartarus_boot_info->cpu_count;
     boot_info->boot_timestamp = tartarus_boot_info->boot_timestamp;
+
     boot_info->rdsp_physical = tartarus_boot_info->acpi_rsdp_address;
     boot_info->hhdm_offset = tartarus_boot_info->hhdm_offset;
+
+    boot_info->dtb_physical = 0;
+
+    if(boot_info->rdsp_physical) { log_print("acpi: supported\n"); }
+    if(boot_info->dtb_physical) { log_print("dtb: supported\n"); }
+
+#ifdef __ARCH_RISCV64__
+    boot_info->riscv_base_isa_string = nullptr;
+    boot_info->riscv_extension_count = 0;
+    boot_info->riscv_extentions = nullptr;
+#endif
 
     uintptr_t boot_info_block_pointer = (uintptr_t) boot_info + sizeof(bootinfo_t);
 

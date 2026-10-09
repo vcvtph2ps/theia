@@ -129,6 +129,8 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
     boot_info->core_count = g_mp_request.response->cpu_count;
     boot_info->boot_timestamp = g_boottime_request.response->timestamp;
     boot_info->rdsp_physical = 0;
+    boot_info->dtb_physical = 0;
+
     if(g_rsdp_request.response && g_rsdp_request.response->address) {
         log_print("acpi: supported\n");
         boot_info->rdsp_physical = (uintptr_t) g_rsdp_request.response->address - g_hhdm_request.response->offset;
