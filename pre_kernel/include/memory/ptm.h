@@ -4,7 +4,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-
 #define PTM_FLAG_EXEC (1 << 0)
 #define PTM_FLAG_WRITE (1 << 1)
 #define PTM_FLAG_READ (1 << 2)
@@ -16,6 +15,11 @@ typedef enum : uint64_t {
 } ptm_page_size_t;
 
 #define PTM_PAGE_GRANULARITY PTM_PAGE_SIZE_4K
+
+#define MEMORY_KERNELSPACE_START 0xFFFF'8000'0000'0000
+#define MEMORY_KERNELSPACE_END ((uintptr_t) -PTM_PAGE_GRANULARITY)
+#define MEMORY_USERSPACE_START (PTM_PAGE_GRANULARITY)
+#define MEMORY_USERSPACE_END (((uintptr_t) 1 << 47) - PTM_PAGE_GRANULARITY)
 
 typedef struct {
     uintptr_t tplt;

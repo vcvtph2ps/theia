@@ -90,10 +90,10 @@ void arch_prepare_handoff(void) {
         default: panic("Unsupported SATP mode %lu", cur_mode);
     }
 
-    ptm_map_at(cur_root, cur_levels, trampoline_pa, trampoline_pa, trampoline_sz, PTM_FLAG_READ | PTM_FLAG_EXEC);
-    ptm_map(trampoline_pa, trampoline_pa, trampoline_sz, PTM_FLAG_READ | PTM_FLAG_EXEC);
+    ptm_map_at(cur_root, cur_levels, MEMORY_KERNELSPACE_END, trampoline_pa, trampoline_sz, PTM_FLAG_READ | PTM_FLAG_EXEC);
+    ptm_map(MEMORY_KERNELSPACE_END, trampoline_pa, trampoline_pa, PTM_FLAG_READ | PTM_FLAG_EXEC);
 
-    g_boot_trampoline = (riscv64_kernel_entry_t) trampoline_pa;
+    g_boot_trampoline = (riscv64_kernel_entry_t) MEMORY_KERNELSPACE_END;
     log_print("riscv64: handoff trampoline at phys 0x%lx\n", trampoline_pa);
 }
 

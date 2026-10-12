@@ -45,11 +45,10 @@ void arch_prepare_handoff() {
     uintptr_t current_cr3 = arch_cr_read_cr3();
     uintptr_t level_count = (arch_cr_read_cr4() & (1u << 12)) ? 5u : 4u;
 
-    // @todo: don't just dump at 0x1000
-    ptm_map_at(current_cr3, level_count, 0x1000, (uintptr_t) boot_trampoline_alloc, size * PTM_PAGE_GRANULARITY, PTM_FLAG_READ | PTM_FLAG_EXEC);
-    ptm_map(0x1000, (uintptr_t) boot_trampoline_alloc, size * PTM_PAGE_GRANULARITY, PTM_FLAG_READ | PTM_FLAG_EXEC);
+    ptm_map_at(current_cr3, level_count, MEMORY_KERNELSPACE_END, (uintptr_t) boot_trampoline_alloc, size * PTM_PAGE_GRANULARITY, PTM_FLAG_READ | PTM_FLAG_EXEC);
+    ptm_map(MEMORY_KERNELSPACE_END, (uintptr_t) boot_trampoline_alloc, size * PTM_PAGE_GRANULARITY, PTM_FLAG_READ | PTM_FLAG_EXEC);
 
-    g_boot_trampoline = (x86_64_kernel_entry_t) (0x1000);
+    g_boot_trampoline = (x86_64_kernel_entry_t) MEMORY_KERNELSPACE_END;
 }
 
 __attribute__((no_sanitize("undefined"))) [[noreturn]] void arch_handoff_to_kernel(bootinfo_kernel_entry_point_t entry, uintptr_t stack, bootinfo_t* boot_info, uint64_t core_id) {
