@@ -1,10 +1,5 @@
 local opt_arch = fab.option("arch", { "x86_64", "riscv64" }) or "x86_64"
-local opt_bootloader = fab.option("bootloader", { "limine", "tartarus" }) or "tartarus"
 local opt_build_type = fab.option("buildtype", { "debug", "release" }) or "debug"
-
-if opt_bootloader == "tartarus" and opt_arch == "riscv64" then
-    error("Tartarus does not support riscv64")
-end
 
 local c = require("lang_c")
 local asm = require("lang_nasm")
@@ -28,7 +23,7 @@ local limine_protocol = fab.git(
 local tartarus_protocol = fab.git(
     "tartarus",
     "https://github.com/elysium-os/tartarus-bootloader.git",
-    "e95c3651f16d2560424c2d0d514aa8467d440053"
+    "a282fb1e3077f4efa283165b378f02ed1f52fefd"
 )
 
 local uacpi = fab.git(
@@ -146,11 +141,6 @@ elseif opt_arch == "riscv64" then
     })
 end
 
-if opt_bootloader == "limine" then
-    table.insert(c_flags, "-D__BOOTLOADER_LIMINE__")
-elseif opt_bootloader == "tartarus" then
-    table.insert(c_flags, "-D__BOOTLOADER_TARTARUS__")
-end
 
 local objects = {}
 local other_flags = {}
@@ -206,7 +196,7 @@ table.extend(objects, { fab.def_source("kernel.o") })
 
 local lunar = ld:link("lunar.elf", objects, {
     "-znoexecstack",
-    "-e", "prekernel_entry_" .. opt_bootloader
+    "-e", "prekernel_entry"
 }, linker_script)
 
 return {

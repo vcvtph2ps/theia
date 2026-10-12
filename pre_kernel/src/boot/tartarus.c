@@ -25,7 +25,7 @@ static void tartarus_start_ap(uint64_t tartarus_core_index, core_start_info_t* b
     tartarus_cpu_t* cpu = &g_tartarus_boot_info->cpus[tartarus_core_index];
     __atomic_store_n(cpu->argument, (uint64_t) boot_info, __ATOMIC_SEQ_CST);
     // @note: this can be used directly since tartarus just passes argument in rdi
-    __atomic_store_n(cpu->park_address, (uintptr_t) prekernel_init_ap, __ATOMIC_SEQ_CST); 
+    __atomic_store_n(cpu->park_address, (uintptr_t) prekernel_init_ap, __ATOMIC_SEQ_CST);
 }
 #pragma clang diagnostic pop
 
@@ -40,7 +40,7 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
 
     log_print_raw("\n");
     log_print("Tartarus protcol version: %u.%u\n", major, minor);
-    if(major != 3) { panic("Unsupported Tartarus protocol version\n"); }
+    if(major != 4) { panic("Unsupported Tartarus protocol version\n"); }
 
     for(size_t i = 0; i < tartarus_boot_info->mm_entry_count; i++) {
         tartarus_mm_entry_t* mm_entry = &tartarus_boot_info->mm_entries[i];
@@ -72,9 +72,9 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
     boot_info->boot_timestamp = tartarus_boot_info->boot_timestamp;
 
     boot_info->rdsp_physical = tartarus_boot_info->acpi_rsdp_address;
-    boot_info->hhdm_offset = tartarus_boot_info->hhdm_offset;
+    boot_info->dtb_physical = tartarus_boot_info->device_tree_address;
 
-    boot_info->dtb_physical = 0;
+    boot_info->hhdm_offset = tartarus_boot_info->hhdm_offset;
 
     if(boot_info->rdsp_physical) { log_print("acpi: supported\n"); }
     if(boot_info->dtb_physical) { log_print("dtb: supported\n"); }

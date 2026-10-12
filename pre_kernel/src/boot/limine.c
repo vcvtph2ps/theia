@@ -17,11 +17,13 @@
 }
 
 #define LIMINE_REQUEST [[gnu::used, gnu::section(".limine_requests")]]
+[[noreturn, gnu::used]] void prekernel_entry_limine();
 
 LIMINE_REQUEST volatile struct limine_bootloader_info_request g_limine_bootloader_info_request = { .id = LIMINE_BOOTLOADER_INFO_REQUEST_ID, .revision = 0 };
 LIMINE_REQUEST volatile struct limine_framebuffer_request g_framebuffer_request = { .id = LIMINE_FRAMEBUFFER_REQUEST_ID, .revision = 0 };
 LIMINE_REQUEST volatile struct limine_hhdm_request g_hhdm_request = { .id = LIMINE_HHDM_REQUEST_ID, .revision = 0 };
 LIMINE_REQUEST volatile struct limine_memmap_request g_memmap_request = { .id = LIMINE_MEMMAP_REQUEST_ID, .revision = 0 };
+LIMINE_REQUEST volatile struct limine_entry_point_request g_entrypoint_request = { .id = LIMINE_ENTRY_POINT_REQUEST_ID, .entry = prekernel_entry_limine, .revision = 0 };
 
 #ifdef __ARCH_X86_64__
 LIMINE_REQUEST volatile struct limine_mp_request g_mp_request = { .id = LIMINE_MP_REQUEST_ID, .revision = 0, .response = nullptr, .flags = LIMINE_MP_REQUEST_X86_64_X2APIC };
@@ -34,12 +36,10 @@ LIMINE_REQUEST volatile struct limine_rsdp_request g_rsdp_request = {
     .revision = 0,
 };
 
-#ifdef __ARCH_RISCV64__
 LIMINE_REQUEST volatile struct limine_dtb_request g_dtb_request = {
     .id = LIMINE_DTB_REQUEST_ID,
     .revision = 0,
 };
-#endif
 
 LIMINE_REQUEST volatile struct limine_date_at_boot_request g_boottime_request = {
     .id = LIMINE_DATE_AT_BOOT_REQUEST_ID,
@@ -83,8 +83,6 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
     __atomic_store_n(&cpu->goto_address, limine_ap_entry, __ATOMIC_SEQ_CST);
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-prototypes"
 [[noreturn, gnu::used]] void prekernel_entry_limine() {
     if(LIMINE_LOADED_BASE_REVISION_VALID(g_limine_base_revision)) {
         log_print("Booted via limine protocol version %ld", LIMINE_LOADED_BASE_REVISION(g_limine_base_revision));
@@ -135,18 +133,17 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
         log_print("acpi: supported\n");
         boot_info->rdsp_physical = (uintptr_t) g_rsdp_request.response->address - g_hhdm_request.response->offset;
     }
-    boot_info->hhdm_offset = g_hhdm_request.response->offset;
-
-#ifdef __ARCH_RISCV64__
-    boot_info->dtb_physical = 0;
-    boot_info->riscv_base_isa_string = nullptr;
-    boot_info->riscv_extension_count = 0;
-    boot_info->riscv_extentions = nullptr;
-
     if(g_dtb_request.response && g_dtb_request.response->dtb_ptr) {
         log_print("dtb: supported\n");
         boot_info->dtb_physical = (uintptr_t) g_dtb_request.response->dtb_ptr - g_hhdm_request.response->offset;
     }
+    boot_info->hhdm_offset = g_hhdm_request.response->offset;
+
+#ifdef __ARCH_RISCV64__
+    boot_info->riscv_base_isa_string = nullptr;
+    boot_info->riscv_extension_count = 0;
+    boot_info->riscv_extentions = nullptr;
+
 #endif
 
     uintptr_t boot_info_block_pointer = (uintptr_t) boot_info + sizeof(bootinfo_t);
@@ -206,4 +203,3 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
     prekernel_init(boot_info);
     while(1);
 }
-#pragma clang diagnostic pop

@@ -51,7 +51,7 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
     arch_init_early();
     log_framebuffer_init();
 
-    log_print(ANSI_CLEAR ANSI_HOME ANSI_RESET);
+    // log_print(ANSI_CLEAR ANSI_HOME ANSI_RESET);
     log_print("Hai :333\n");
     log_print("Core count: %ld\n", boot_info->core_count);
 
