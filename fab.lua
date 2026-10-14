@@ -17,13 +17,13 @@ assert(ld ~= nil, "No ld.lld found")
 local limine_protocol = fab.git(
     "limine_protocol",
     "https://github.com/Limine-Bootloader/limine-protocol.git",
-    "5b9d13e"
+    "3a0526b700e356f0eac1b71a77697b3fd1c707a3"
 )
 
 local tartarus_protocol = fab.git(
     "tartarus",
     "https://github.com/elysium-os/tartarus-bootloader.git",
-    "a282fb1e3077f4efa283165b378f02ed1f52fefd"
+    "c951660a9a64a152b7c1fbc8ed37feba08555900"
 )
 
 local uacpi = fab.git(
@@ -37,7 +37,7 @@ if opt_arch == "riscv64" then
     libfdt = fab.git(
         "dtc",
         "https://github.com/dgibson/dtc.git",
-        "v1.7.0"
+        "8f48565e5cfedc74d3f7512f1e0188e9d85dc1de"
     )
 end
 
