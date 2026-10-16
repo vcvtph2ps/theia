@@ -2,17 +2,33 @@
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
 #include <globals.h>
+#include <lib/math.h>
 #include <log.h>
+#include <memory/pmm.h>
+#include <memory/ptm.h>
 #include <nanoprintf/nanoprintf.h>
 #include <spinlock.h>
+#include <stddef.h>
+#include <stdint.h>
+
+static void* log_fb_alloc(size_t size) {
+    size_t pages = MATH_ALIGN_UP(size, PTM_PAGE_GRANULARITY) / PTM_PAGE_GRANULARITY;
+    return (void*) ((uintptr_t) pmm_alloc(pages) + g_globals_boot_info->hhdm_offset);
+}
+
+static void log_fb_free(void* pointer, size_t size) {
+    size_t pages = MATH_ALIGN_UP(size, PTM_PAGE_GRANULARITY) / PTM_PAGE_GRANULARITY;
+    pmm_free((void*) ((uintptr_t) pointer - g_globals_boot_info->hhdm_offset), pages);
+}
+
 struct flanterm_context* g_log_framebuffer_context = nullptr;
 
 void log_framebuffer_init() {
     if(g_globals_boot_info->framebuffer_count == 0) { return; }
     bootinfo_framebuffer_t framebuffer = g_globals_boot_info->framebuffers[0];
     struct flanterm_context* ft_ctx = flanterm_fb_init(
-        nullptr,
-        nullptr,
+        log_fb_alloc,
+        log_fb_free,
         framebuffer.vaddr,
         framebuffer.width,
         framebuffer.height,
