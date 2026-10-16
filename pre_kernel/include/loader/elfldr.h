@@ -3,6 +3,8 @@
 #include <stdint.h>
 
 typedef struct {
+    uintptr_t elf_data;
+
     bootinfo_kernel_entry_point_t entry_point;
     uintptr_t kernel_base;
 

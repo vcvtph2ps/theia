@@ -98,6 +98,8 @@ static void machine_setup_control_registers(uint64_t core_id) {
             xcr0 |= 1 << 7; // XCR0.Hi16_ZMM
         }
     }
+
+    if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_NX_PAGES)) log_print_raw("NX, ");
     log_print_raw("\b\b]\n");
 
     arch_cr_write_cr4(cr4);

@@ -1,3 +1,4 @@
+#include <common/kgz.h>
 #include <globals.h>
 #include <lib/math.h>
 #include <loader/elfldr.h>
@@ -79,6 +80,11 @@ typedef struct {
 #define PFLAGS_READ (1 << 2)
 #define PTYPE_NOTE 4
 
+static bool elf_needs_decompression(const elf64_elf_header_t* elf_header) {
+    if(!elf_header) { return false; }
+    return elf_header->e_ident[0] == 0x1F || elf_header->e_ident[1] == 0x8B;
+}
+
 static bool elf_supported(const elf64_elf_header_t* elf_header) {
     if(!elf_header) { return false; }
     if(elf_header->e_ident[0] != 0x7f || elf_header->e_ident[1] != 'E' || elf_header->e_ident[2] != 'L' || elf_header->e_ident[3] != 'F') { return false; }
@@ -113,7 +119,7 @@ static void internal_elf_handle_pt_load(elf64_program_header_t* phdr, elfldr_loa
     }
 
     memset((void*) (paddr + g_globals_boot_info->hhdm_offset), 0, end_vaddr - start_vaddr);
-    memcpy((void*) (paddr + (phdr->p_vaddr - start_vaddr) + g_globals_boot_info->hhdm_offset), (void*) (phdr->p_offset + (uintptr_t) _binary_kernel_elf_start), phdr->p_filesz);
+    memcpy((void*) (paddr + (phdr->p_vaddr - start_vaddr) + g_globals_boot_info->hhdm_offset), (void*) (phdr->p_offset + (uintptr_t) loader_info->elf_data), phdr->p_filesz);
 
     size_t segment_idx = loader_info->segment_count++;
     loader_info->segments[segment_idx].paddr = paddr + (phdr->p_vaddr - start_vaddr);
@@ -124,16 +130,17 @@ static void internal_elf_handle_pt_load(elf64_program_header_t* phdr, elfldr_loa
     if(loader_info->kernel_base > phdr->p_vaddr) { loader_info->kernel_base = phdr->p_vaddr; }
 }
 
-static bool internal_elf_load_image(elfldr_loader_info_t* loader_info) {
+static bool internal_elf_load_image(uintptr_t elf_data, elfldr_loader_info_t* loader_info) {
     // cache phdrs so we don't have to read them multiple times
-    elf64_elf_header_t* elf_header = (elf64_elf_header_t*) _binary_kernel_elf_start;
+    elf64_elf_header_t* elf_header = (elf64_elf_header_t*) elf_data;
 
-    elf64_program_header_t* phdrs = (elf64_program_header_t*) (_binary_kernel_elf_start + elf_header->e_phoff);
+    elf64_program_header_t* phdrs = (elf64_program_header_t*) (elf_data + elf_header->e_phoff);
     size_t load_count = 0;
     for(size_t i = 0; i < elf_header->e_phnum; i++) {
         if(phdrs[i].p_type == PTYPE_LOAD) load_count++;
     }
 
+    loader_info->elf_data = (uintptr_t) elf_data;
     loader_info->segments = (bootinfo_segment_t*) ((uintptr_t) pmm_alloc(MATH_ALIGN_UP(load_count * sizeof(bootinfo_segment_t), PTM_PAGE_GRANULARITY) / PTM_PAGE_GRANULARITY) + g_globals_boot_info->hhdm_offset);
     loader_info->segment_count = 0;
 
@@ -158,8 +165,8 @@ static bool internal_elf_load_image(elfldr_loader_info_t* loader_info) {
         return false;
     }
 
-    elf64_section_header_t* shdrs = (elf64_section_header_t*) (_binary_kernel_elf_start + elf_header->e_shoff);
-    const char* shstrtab = (const char*) (_binary_kernel_elf_start + shdrs[elf_header->e_shstrndx].sh_offset);
+    elf64_section_header_t* shdrs = (elf64_section_header_t*) (loader_info->elf_data + elf_header->e_shoff);
+    const char* shstrtab = (const char*) (loader_info->elf_data + shdrs[elf_header->e_shstrndx].sh_offset);
 
     loader_info->kernel_info = nullptr;
     for(size_t i = 0; i < elf_header->e_shnum; i++) {
@@ -187,9 +194,19 @@ static bool internal_elf_load_image(elfldr_loader_info_t* loader_info) {
     return true;
 }
 
-
 bool elfldr_load_kernel(elfldr_loader_info_t* out_info) {
     elf64_elf_header_t* elf_data = (elf64_elf_header_t*) _binary_kernel_elf_start;
+    size_t compressed_buffer_size;
+    void* compressed_buffer;
+    if(elf_needs_decompression(elf_data)) {
+        compressed_buffer = kgz_gzip_decompress(elf_data, _binary_kernel_elf_end - _binary_kernel_elf_start, nullptr, &compressed_buffer_size);
+        if(compressed_buffer == nullptr) {
+            log_print("Failed to decompress elf file\n");
+            return false;
+        }
+        elf_data = (elf64_elf_header_t*) compressed_buffer;
+    }
+
     if(!elf_supported(elf_data)) {
         log_print("Unsupported elf file\n");
         return false;
@@ -197,10 +214,11 @@ bool elfldr_load_kernel(elfldr_loader_info_t* out_info) {
 
     memset(out_info, 0, sizeof(elfldr_loader_info_t));
     out_info->kernel_base = UINTPTR_MAX;
-    if(!internal_elf_load_image(out_info)) {
+    if(!internal_elf_load_image((uintptr_t) elf_data, out_info)) {
         log_print("Failed to load elf image\n");
         return false;
     }
 
+    if(compressed_buffer) { pmm_free(compressed_buffer, compressed_buffer_size / PTM_PAGE_GRANULARITY); }
     return true;
 }
