@@ -26,6 +26,16 @@ LIMINE_REQUEST volatile struct limine_memmap_request g_memmap_request = { .id = 
 LIMINE_REQUEST volatile struct limine_entry_point_request g_entrypoint_request = { .id = LIMINE_ENTRY_POINT_REQUEST_ID, .entry = prekernel_entry_limine, .revision = 0 };
 
 #ifdef __ARCH_X86_64__
+LIMINE_REQUEST volatile struct limine_paging_mode_request g_paging_mode_request = {
+    .id = LIMINE_PAGING_MODE_REQUEST_ID,
+    .revision = 0,
+    .mode = LIMINE_PAGING_MODE_X86_64_5LVL,
+    .max_mode = LIMINE_PAGING_MODE_X86_64_5LVL,
+    .min_mode = LIMINE_PAGING_MODE_X86_64_4LVL,
+};
+#endif
+
+#ifdef __ARCH_X86_64__
 LIMINE_REQUEST volatile struct limine_mp_request g_mp_request = { .id = LIMINE_MP_REQUEST_ID, .revision = 0, .response = nullptr, .flags = LIMINE_MP_REQUEST_X86_64_X2APIC };
 #else
 LIMINE_REQUEST volatile struct limine_mp_request g_mp_request = { .id = LIMINE_MP_REQUEST_ID, .revision = 0, .response = nullptr, .flags = 0 };
