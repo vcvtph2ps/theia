@@ -119,6 +119,9 @@ typedef struct [[gnu::packed]] {
     size_t module_count;
     bootinfo_module_t* modules;
 
+    // @note: can be nullptr if not provided
+    char* command_line;
+
 #ifdef __ARCH_RISCV64__
     char* riscv_base_isa_string;
     size_t riscv_extension_count;
