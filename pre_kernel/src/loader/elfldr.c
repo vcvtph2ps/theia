@@ -82,7 +82,7 @@ typedef struct {
 
 static bool elf_needs_decompression(const elf64_elf_header_t* elf_header) {
     if(!elf_header) { return false; }
-    return elf_header->e_ident[0] == 0x1F || elf_header->e_ident[1] == 0x8B;
+    return elf_header->e_ident[0] == 0x1F && elf_header->e_ident[1] == 0x8B;
 }
 
 static bool elf_supported(const elf64_elf_header_t* elf_header) {
@@ -219,6 +219,6 @@ bool elfldr_load_kernel(elfldr_loader_info_t* out_info) {
         return false;
     }
 
-    if(compressed_buffer) { pmm_free(compressed_buffer, compressed_buffer_size / PTM_PAGE_GRANULARITY); }
+    if(compressed_buffer) { pmm_free((void*) ((uintptr_t) compressed_buffer - g_globals_boot_info->hhdm_offset), compressed_buffer_size / PTM_PAGE_GRANULARITY); }
     return true;
 }
