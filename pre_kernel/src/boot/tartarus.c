@@ -70,6 +70,7 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
     bootinfo_t* boot_info = (bootinfo_t*) ((uintptr_t) pmm_alloc(boot_info_block_size / PTM_PAGE_GRANULARITY) + tartarus_boot_info->hhdm_offset);
     boot_info->core_count = tartarus_boot_info->cpu_count;
     boot_info->boot_timestamp = tartarus_boot_info->boot_timestamp;
+    boot_info->command_line = nullptr;
 
     boot_info->rdsp_physical = tartarus_boot_info->acpi_rsdp_address;
     boot_info->dtb_physical = tartarus_boot_info->device_tree_address;

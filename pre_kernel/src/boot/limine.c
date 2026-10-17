@@ -24,6 +24,7 @@ LIMINE_REQUEST volatile struct limine_framebuffer_request g_framebuffer_request 
 LIMINE_REQUEST volatile struct limine_hhdm_request g_hhdm_request = { .id = LIMINE_HHDM_REQUEST_ID, .revision = 0 };
 LIMINE_REQUEST volatile struct limine_memmap_request g_memmap_request = { .id = LIMINE_MEMMAP_REQUEST_ID, .revision = 0 };
 LIMINE_REQUEST volatile struct limine_entry_point_request g_entrypoint_request = { .id = LIMINE_ENTRY_POINT_REQUEST_ID, .entry = prekernel_entry_limine, .revision = 0 };
+LIMINE_REQUEST volatile struct limine_executable_cmdline_request g_cmdline_request = { .id = LIMINE_EXECUTABLE_CMDLINE_REQUEST_ID, .revision = 0 };
 
 #ifdef __ARCH_X86_64__
 LIMINE_REQUEST volatile struct limine_paging_mode_request g_paging_mode_request = {
@@ -126,6 +127,7 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
     }
 
     size_t boot_info_block_size = sizeof(bootinfo_t);
+    if(g_cmdline_request.response != nullptr) { boot_info_block_size += strlen(g_cmdline_request.response->cmdline) + 1; }
     if(g_framebuffer_request.response != nullptr) { boot_info_block_size += sizeof(bootinfo_framebuffer_t) * g_framebuffer_request.response->framebuffer_count; }
     boot_info_block_size += sizeof(bootinfo_module_t) * g_module_request.response->module_count;
 
@@ -157,6 +159,13 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
 #endif
 
     uintptr_t boot_info_block_pointer = (uintptr_t) boot_info + sizeof(bootinfo_t);
+    if(g_cmdline_request.response != nullptr) {
+        char* str = (char*) boot_info_block_pointer;
+        size_t len = strlen(g_cmdline_request.response->cmdline) + 1;
+        memcpy(str, g_cmdline_request.response->cmdline, len);
+        boot_info->command_line = str;
+        boot_info_block_pointer += len;
+    }
 
     if(g_framebuffer_request.response != nullptr) {
         boot_info->framebuffer_count = g_framebuffer_request.response->framebuffer_count;
