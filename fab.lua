@@ -177,6 +177,7 @@ table.extend(kernel_flags, {
     "-Wno-error=unused-function",
     "-Wmissing-prototypes",
     "-Wdocumentation",
+    "-Wno-error=documentation",
     "-Wmissing-noreturn",
 })
 

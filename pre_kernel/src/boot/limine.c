@@ -58,8 +58,8 @@ LIMINE_REQUEST volatile struct limine_date_at_boot_request g_boottime_request = 
 };
 
 LIMINE_REQUEST volatile struct limine_internal_module g_initramfs = {
-    .path = "initramfs.rdk",
-    .string = "initramfs.rdk",
+    .path = "initramfs.rdk.gz",
+    .string = "initramfs.rdk.gz",
     .flags = LIMINE_INTERNAL_MODULE_REQUIRED,
 };
 
