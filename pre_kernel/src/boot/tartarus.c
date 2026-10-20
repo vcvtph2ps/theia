@@ -49,6 +49,7 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
             case TARTARUS_MM_TYPE_EFI_RECLAIMABLE:        [[fallthrough]];
             case TARTARUS_MM_TYPE_USABLE:                 type = PMM_MAP_TYPE_FREE; break;
             case TARTARUS_MM_TYPE_ACPI_TABLES:            type = PMM_MAP_TYPE_USED; break;
+            case TARTARUS_MM_TYPE_DEVICE_TREE:            type = PMM_MAP_TYPE_USED; break;
             case TARTARUS_MM_TYPE_RESERVED:               type = PMM_MAP_TYPE_RESERVED; break;
             case TARTARUS_MM_TYPE_BOOTLOADER_RECLAIMABLE: type = PMM_MAP_TYPE_BOOTLOADER_RECLAIMABLE; break;
             case TARTARUS_MM_TYPE_ACPI_RECLAIMABLE:       type = PMM_MAP_TYPE_ACPI_RECLAIMABLE; break;
