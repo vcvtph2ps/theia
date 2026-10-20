@@ -29,7 +29,14 @@ void pagedb_setup(uintptr_t kernel_base, size_t pagedb_entry_size, uintptr_t* pf
         panic("invalid pagedb entry size: %zu", pagedb_entry_size);
     }
 
-    size_t system_page_count = MATH_ALIGN_UP(g_globals_boot_info->hhdm_size, PTM_PAGE_GRANULARITY) / PTM_PAGE_GRANULARITY;
+    // @note: the pagedb only ever tracks pages that are actually backed by tracked memory
+    size_t system_page_count = 0;
+    for(size_t i = 0; i < g_pmm_map_size; i++) {
+        if(!pagedb_entry_is_tracked(g_pmm_map[i].type)) continue;
+        size_t end = g_pmm_map[i].base + g_pmm_map[i].length;
+        system_page_count = MATH_MAX(system_page_count, MATH_DIV_CEIL(end, PTM_PAGE_GRANULARITY));
+    }
+
     size_t entries_per_page = PTM_PAGE_GRANULARITY / pagedb_entry_size;
     size_t pagedb_page_count = MATH_DIV_CEIL(system_page_count, entries_per_page);
     size_t pagedb_size = pagedb_page_count * PTM_PAGE_GRANULARITY;
@@ -56,8 +63,8 @@ void pagedb_setup(uintptr_t kernel_base, size_t pagedb_entry_size, uintptr_t* pf
 
         for(size_t i = 0; i < map_entry_count; i++) {
             pmm_map_entry_t* entry = &g_pmm_map[i];
-            if(!pagedb_entry_is_tracked(entry->type)) continue;
             if(entry->base >= end_addr) break; // map is sorted by base
+            if(!pagedb_entry_is_tracked(entry->type)) continue;
             if(entry->base + entry->length > start_addr) {
                 bitmap[page_index / 8] |= (uint8_t) (1 << (page_index % 8));
                 break;
