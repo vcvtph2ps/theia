@@ -41,71 +41,42 @@ static void machine_setup_control_registers(uint64_t core_id) {
     uint64_t cr4 = arch_cr_read_cr4();
     bool la57 = cr4 & (1 << 12);
 
-    // PAE, OSFXSR, OSXMMEXCPT
-    cr4 = 0x620;
+    // PAE
+    cr4 = 0x20;
     if(la57) {
         cr4 |= 1 << 12; // CR4.LA57
     }
 
-    bool write_xcr0 = false;
-    uint64_t xcr0 = 0;
-
-    log_print("Enabled optional features for core %lu: [", core_id);
+    if(core_id == 0) log_print("Enabling optional features %lu: [", core_id);
     if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_UMIP)) {
         cr4 |= (1 << 11); // CR4.UMIP
-        log_print_raw("UMIP, ");
+        if(core_id == 0) log_print_raw("UMIP, ");
     }
 
     if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_SMEP)) {
         cr4 |= (1 << 20); // CR4.SMEP
-        log_print_raw("SMEP, ");
+        if(core_id == 0) log_print_raw("SMEP, ");
     }
 
     if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_SMAP)) {
         cr4 |= (1 << 21); // CR4.SMAP
-        log_print_raw("SMAP, ");
-    }
-
-    if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_FRED)) {
-        cr4 |= (1ul << 32); // CR4.FRED
-        log_print_raw("FRED, ");
+        if(core_id == 0) log_print_raw("SMAP, ");
     }
 
     if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_PAT)) {
         arch_setup_page_table_attributes();
-        log_print_raw("PAT, ");
+        if(core_id == 0) log_print_raw("PAT, ");
     }
 
     if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_GLOBAL_PAGES)) {
         cr4 |= (1ul << 7); // CR4.PGE
-        log_print_raw("PGE, ");
+        if(core_id == 0) log_print_raw("PGE, ");
     }
 
-    if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_LKGS)) { log_print_raw("LKGS, "); }
-
-    if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_XSAVE)) {
-        log_print_raw("XSAVE, ");
-        cr4 |= 1 << 18; // CR4.OSXSAVE
-
-        xcr0 |= 1 << 0; // XCR0.X87
-        xcr0 |= 1 << 1; // XCR0.SSE
-        if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_AVX)) {
-            log_print_raw("AVX, ");
-            xcr0 |= 1 << 2; // XCR0.AVX
-        }
-        if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_AVX512)) {
-            log_print_raw("AVX512, ");
-            xcr0 |= 1 << 5; // XCR0.opmask
-            xcr0 |= 1 << 6; // XCR0.ZMM_Hi256
-            xcr0 |= 1 << 7; // XCR0.Hi16_ZMM
-        }
-    }
-
-    if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_NX_PAGES)) log_print_raw("NX, ");
-    log_print_raw("\b\b]\n");
+    if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_NX_PAGES)) if(core_id == 0) log_print_raw("NX, ");
+    if(core_id == 0) log_print_raw("\b\b]\n");
 
     arch_cr_write_cr4(cr4);
-    if(write_xcr0) { arch_cr_write_xcr0(xcr0); }
 
     if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_NX_PAGES)) arch_msr_write(ARCH_MSR_EFER, arch_msr_read(ARCH_MSR_EFER) | (1 << 11)); // EFER.NXE
 }
