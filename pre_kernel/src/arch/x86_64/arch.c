@@ -27,6 +27,7 @@ void arch_spin_hint() {
 
 void arch_init_early() {
     arch_16550uart_early_setup();
+    arch_setup_page_table_attributes();
 }
 
 void arch_debug_putc(char c) {

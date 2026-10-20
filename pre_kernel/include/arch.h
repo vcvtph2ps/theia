@@ -44,6 +44,13 @@ void arch_prepare_handoff();
 void arch_spin_hint();
 
 
+#ifdef __ARCH_X86_64__
+/**
+ * @brief Setup PAT, needs to happen before any write combining mappings are used
+ */
+void arch_setup_page_table_attributes();
+#endif
+
 #ifdef __ARCH_RISCV64__
 /**
  * @brief Parse architecture specific information from the FDT/ACPI and store it in the bootinfo struct for the kernel.

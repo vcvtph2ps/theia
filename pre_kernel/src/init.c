@@ -49,6 +49,8 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
 [[noreturn]] void prekernel_init(bootinfo_t* boot_info) {
     g_globals_boot_info = boot_info;
     arch_init_early();
+    ptm_init();
+    ptm_map_framebuffers();
     log_framebuffer_init();
 
     // log_print(ANSI_CLEAR ANSI_HOME ANSI_RESET);
@@ -69,8 +71,6 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
         uacpi_status status = uacpi_setup_early_table_access((void*) temporary_buffer, PTM_PAGE_GRANULARITY * 2);
         if(status != UACPI_STATUS_OK) { panic("failed to setup acpi tables"); }
     }
-
-    ptm_init();
 
     elfldr_loader_info_t kernel_image_info;
     if(!elfldr_load_kernel(&kernel_image_info)) { panic("failed to load kernel elf image"); }
@@ -104,15 +104,6 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
     arch_setup_cpus(start_info_block, boot_info->core_count, kernel_image_info.kernel_info);
 
     ptm_create_hhdm_mappings();
-
-    if(boot_info->framebuffer_count > 0) {
-        for(size_t i = 0; i < boot_info->framebuffer_count; i++) {
-            bootinfo_framebuffer_t* fb = &boot_info->framebuffers[i];
-            if(fb->paddr < boot_info->hhdm_offset || fb->paddr + fb->size > boot_info->hhdm_offset + boot_info->hhdm_size) {
-                ptm_map(fb->paddr + boot_info->hhdm_offset, fb->paddr, MATH_ALIGN_UP(fb->size, PTM_PAGE_GRANULARITY), PTM_FLAG_READ | PTM_FLAG_WRITE);
-            }
-        }
-    }
 
     arch_prepare_handoff();
 

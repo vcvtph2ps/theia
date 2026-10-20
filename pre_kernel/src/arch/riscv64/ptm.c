@@ -117,6 +117,45 @@ void ptm_map_at(uintptr_t root_pa, size_t level_count, uint64_t vaddr, uint64_t 
     }
 }
 
+static bool range_overlaps_framebuffer(uint64_t base, uint64_t length) {
+    uint64_t end = base + length;
+    for(size_t i = 0; i < g_globals_boot_info->framebuffer_count; i++) {
+        bootinfo_framebuffer_t* fb = &g_globals_boot_info->framebuffers[i];
+        uint64_t fb_start = fb->paddr;
+        uint64_t fb_end = fb->paddr + fb->size;
+        if(base < fb_end && fb_start < end) return true;
+    }
+    return false;
+}
+
+// @see arch/x86_64/ptm.c
+// framebuffers live at a dedicated region rather than in the HHDM
+void ptm_map_framebuffers() {
+    uint64_t satp_now = ARCH_CSR_READ(satp);
+    uintptr_t current_root = (uintptr_t) ((satp_now & ARCH_CSR_SATP_PPN_MASK) << 12);
+    uint64_t current_mode = satp_now >> 60;
+    size_t current_level_count;
+    switch(current_mode) {
+        case 10: current_level_count = 5; break; // Sv57
+        case 9:  current_level_count = 4; break; // Sv48
+        case 8:  current_level_count = 3; break; // Sv39
+        default: panic("Unsupported SATP mode %lu", current_mode);
+    }
+
+    uintptr_t vaddr = MEMORY_FRAMEBUFFER_START;
+    for(size_t i = 0; i < g_globals_boot_info->framebuffer_count; i++) {
+        bootinfo_framebuffer_t* fb = &g_globals_boot_info->framebuffers[i];
+        uint64_t size = MATH_ALIGN_UP(fb->size, PTM_PAGE_GRANULARITY);
+        uint8_t flags = PTM_FLAG_READ | PTM_FLAG_WRITE | PTM_FLAG_WRITE_COMBINE;
+
+        ptm_map_at(current_root, current_level_count, vaddr, fb->paddr, size, flags);
+        ptm_map(vaddr, fb->paddr, size, flags);
+
+        fb->vaddr = (void*) vaddr;
+        vaddr += size;
+    }
+}
+
 void ptm_create_hhdm_mappings() {
     pmm_map_snapshot_t snapshot = pmm_create_snapshot();
 
@@ -130,6 +169,9 @@ void ptm_create_hhdm_mappings() {
             base -= base % PTM_PAGE_GRANULARITY;
         }
         if(length % PTM_PAGE_GRANULARITY != 0) length += PTM_PAGE_GRANULARITY - length % PTM_PAGE_GRANULARITY;
+
+        // framebuffers are mapped separately at MEMORY_FRAMEBUFFER_START
+        if(range_overlaps_framebuffer(base, length)) continue;
 
         ptm_map(g_globals_boot_info->hhdm_offset + base, base, length, PTM_FLAG_READ | PTM_FLAG_WRITE);
     }

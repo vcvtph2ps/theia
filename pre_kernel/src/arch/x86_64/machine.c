@@ -17,7 +17,9 @@
 #define PAT_WRITE_BACK 6ULL
 #define PAT_UNCACHED 7ULL
 
-static void setup_page_table_attributes() {
+void arch_setup_page_table_attributes() {
+    if(!arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_PAT)) { return; }
+
     uint8_t pat0 = PAT_WRITE_BACK;
     uint8_t pat1 = PAT_WRITE_THROUGH;
     uint8_t pat2 = PAT_UNCACHED;
@@ -70,7 +72,7 @@ static void machine_setup_control_registers(uint64_t core_id) {
     }
 
     if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_PAT)) {
-        setup_page_table_attributes();
+        arch_setup_page_table_attributes();
         log_print_raw("PAT, ");
     }
 

@@ -16,6 +16,9 @@
 
 #define ENTRYH_FLAG_PS (1 << 7)
 
+#define ENTRY_FLAG_PAT_4K ((uint64_t) 1 << 7)
+#define ENTRY_FLAG_PAT_LARGE ((uint64_t) 1 << 12)
+
 #define ENTRY_4K_ADDRESS_MASK ((uint64_t) 0x0007'FFFF'FFFF'F000)
 #define ENTRY_2M_ADDRESS_MASK ((uint64_t) 0x0007'FFFF'FFE0'0000)
 #define ENTRY_1G_ADDRESS_MASK ((uint64_t) 0x0007'FFFF'C000'0000)
@@ -49,7 +52,7 @@ void ptm_init() {
 }
 
 
-static void map_page(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t paddr, ptm_page_size_t page_size, bool rw, bool nx) {
+static void map_page(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t paddr, ptm_page_size_t page_size, bool rw, bool nx, bool wc) {
     int lowest_level;
     switch(page_size) {
         case PTM_PAGE_SIZE_4K: lowest_level = 1; break;
@@ -91,6 +94,7 @@ static void map_page(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t
     if(page_size != PTM_PAGE_SIZE_4K) entry |= ENTRYH_FLAG_PS;
     if(rw) entry |= ENTRY_FLAG_RW;
     if(nx) entry |= ENTRY_FLAG_NX;
+    if(wc) entry |= (page_size == PTM_PAGE_SIZE_4K) ? ENTRY_FLAG_PAT_4K : ENTRY_FLAG_PAT_LARGE;
     current_table[index] = entry;
 }
 
@@ -104,7 +108,7 @@ void ptm_map(uint64_t vaddr, uint64_t paddr, uint64_t length, uint8_t flags) {
         if(paddr % PTM_PAGE_SIZE_2M == 0 && vaddr % PTM_PAGE_SIZE_2M == 0 && length - offset >= PTM_PAGE_SIZE_2M) page_size = PTM_PAGE_SIZE_2M;
         if(g_x86_64_cpu_pdpe1gb_support && paddr % PTM_PAGE_SIZE_1G == 0 && vaddr % PTM_PAGE_SIZE_1G == 0 && length - offset >= PTM_PAGE_SIZE_1G) page_size = PTM_PAGE_SIZE_1G;
 
-        map_page(g_ptm.tplt, g_ptm.level_count, vaddr, paddr, page_size, (flags & PTM_FLAG_WRITE) != 0, g_x86_64_cpu_nx_support && (flags & PTM_FLAG_EXEC) == 0);
+        map_page(g_ptm.tplt, g_ptm.level_count, vaddr, paddr, page_size, (flags & PTM_FLAG_WRITE) != 0, g_x86_64_cpu_nx_support && (flags & PTM_FLAG_EXEC) == 0, (flags & PTM_FLAG_WRITE_COMBINE) != 0);
         paddr += page_size;
         vaddr += page_size;
         offset += page_size;
@@ -121,10 +125,39 @@ void ptm_map_at(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t padd
         if(paddr % PTM_PAGE_SIZE_2M == 0 && vaddr % PTM_PAGE_SIZE_2M == 0 && length - offset >= PTM_PAGE_SIZE_2M) page_size = PTM_PAGE_SIZE_2M;
         if(g_x86_64_cpu_pdpe1gb_support && paddr % PTM_PAGE_SIZE_1G == 0 && vaddr % PTM_PAGE_SIZE_1G == 0 && length - offset >= PTM_PAGE_SIZE_1G) page_size = PTM_PAGE_SIZE_1G;
 
-        map_page(cr3, level_count, vaddr, paddr, page_size, (flags & PTM_FLAG_WRITE) != 0, g_x86_64_cpu_nx_support && (flags & PTM_FLAG_EXEC) == 0);
+        map_page(cr3, level_count, vaddr, paddr, page_size, (flags & PTM_FLAG_WRITE) != 0, g_x86_64_cpu_nx_support && (flags & PTM_FLAG_EXEC) == 0, (flags & PTM_FLAG_WRITE_COMBINE) != 0);
         paddr += page_size;
         vaddr += page_size;
         offset += page_size;
+    }
+}
+
+static bool range_overlaps_framebuffer(uint64_t base, uint64_t length) {
+    uint64_t end = base + length;
+    for(size_t i = 0; i < g_globals_boot_info->framebuffer_count; i++) {
+        bootinfo_framebuffer_t* fb = &g_globals_boot_info->framebuffers[i];
+        uint64_t fb_start = fb->paddr;
+        uint64_t fb_end = fb->paddr + fb->size;
+        if(base < fb_end && fb_start < end) return true;
+    }
+    return false;
+}
+
+void ptm_map_framebuffers() {
+    uintptr_t current_cr3 = arch_cr_read_cr3();
+    size_t current_level_count = (arch_cr_read_cr4() & (1u << 12)) ? 5u : 4u;
+
+    uintptr_t vaddr = MEMORY_FRAMEBUFFER_START;
+    for(size_t i = 0; i < g_globals_boot_info->framebuffer_count; i++) {
+        bootinfo_framebuffer_t* fb = &g_globals_boot_info->framebuffers[i];
+        uint64_t size = MATH_ALIGN_UP(fb->size, PTM_PAGE_GRANULARITY);
+        uint8_t flags = PTM_FLAG_READ | PTM_FLAG_WRITE | PTM_FLAG_WRITE_COMBINE;
+
+        ptm_map_at(current_cr3, current_level_count, vaddr, fb->paddr, size, flags);
+        ptm_map(vaddr, fb->paddr, size, flags);
+
+        fb->vaddr = (void*) vaddr;
+        vaddr += size;
     }
 }
 
@@ -141,6 +174,9 @@ void ptm_create_hhdm_mappings() {
             base -= base % PTM_PAGE_GRANULARITY;
         }
         if(length % PTM_PAGE_GRANULARITY != 0) length += PTM_PAGE_GRANULARITY - length % PTM_PAGE_GRANULARITY;
+
+        // framebuffers are mapped separately at MEMORY_FRAMEBUFFER_START
+        if(range_overlaps_framebuffer(base, length)) continue;
 
         ptm_map(g_globals_boot_info->hhdm_offset + base, base, length, PTM_FLAG_READ | PTM_FLAG_WRITE);
     }
