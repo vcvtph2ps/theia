@@ -206,7 +206,7 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
         struct limine_file* limine_module = g_module_request.response->modules[i];
 
         module->name = (char*) module_name_block;
-        module->phys_addr = (uintptr_t) pmm_alloc(MATH_ALIGN_UP(limine_module->size, PTM_PAGE_GRANULARITY) / PTM_PAGE_GRANULARITY);
+        module->phys_addr = (uintptr_t) pmm_alloc_ext(MATH_ALIGN_UP(limine_module->size, PTM_PAGE_GRANULARITY) / PTM_PAGE_GRANULARITY, PTM_PAGE_GRANULARITY, PMM_MAP_TYPE_MODULE);
         module->size = limine_module->size;
 
         memcpy((void*) module->name, limine_module->path, strlen(limine_module->path) + 1);
