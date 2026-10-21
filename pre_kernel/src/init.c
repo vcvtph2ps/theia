@@ -67,7 +67,7 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
 
     log_print("rsdp: 0x%lx\n", boot_info->rdsp_physical);
     if(boot_info->rdsp_physical) {
-        uintptr_t temporary_buffer = (uintptr_t) pmm_alloc(PTM_PAGE_GRANULARITY * 2) + g_globals_boot_info->hhdm_offset;
+        uintptr_t temporary_buffer = (uintptr_t) pmm_alloc(2) + g_globals_boot_info->hhdm_offset;
         uacpi_status status = uacpi_setup_early_table_access((void*) temporary_buffer, PTM_PAGE_GRANULARITY * 2);
         if(status != UACPI_STATUS_OK) { panic("failed to setup acpi tables"); }
     }
