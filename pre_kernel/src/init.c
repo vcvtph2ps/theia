@@ -75,7 +75,7 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
     elfldr_loader_info_t kernel_image_info;
     if(!elfldr_load_kernel(&kernel_image_info)) { panic("failed to load kernel elf image"); }
 
-#ifdef __ARCH_RISCV64__
+#if defined(__riscv) && __riscv_xlen == 64
     if(!arch_parse_extentions()) { panic("failed to parse extentions"); }
 #endif
 

@@ -26,7 +26,7 @@ LIMINE_REQUEST volatile struct limine_memmap_request g_memmap_request = { .id = 
 LIMINE_REQUEST volatile struct limine_entry_point_request g_entrypoint_request = { .id = LIMINE_ENTRY_POINT_REQUEST_ID, .entry = prekernel_entry_limine, .revision = 0 };
 LIMINE_REQUEST volatile struct limine_executable_cmdline_request g_cmdline_request = { .id = LIMINE_EXECUTABLE_CMDLINE_REQUEST_ID, .revision = 0 };
 
-#ifdef __ARCH_X86_64__
+#ifdef __x86_64__
 LIMINE_REQUEST volatile struct limine_paging_mode_request g_paging_mode_request = {
     .id = LIMINE_PAGING_MODE_REQUEST_ID,
     .revision = 0,
@@ -36,7 +36,7 @@ LIMINE_REQUEST volatile struct limine_paging_mode_request g_paging_mode_request 
 };
 #endif
 
-#ifdef __ARCH_X86_64__
+#ifdef __x86_64__
 LIMINE_REQUEST volatile struct limine_mp_request g_mp_request = { .id = LIMINE_MP_REQUEST_ID, .revision = 0, .response = nullptr, .flags = LIMINE_MP_REQUEST_X86_64_X2APIC };
 #else
 LIMINE_REQUEST volatile struct limine_mp_request g_mp_request = { .id = LIMINE_MP_REQUEST_ID, .revision = 0, .response = nullptr, .flags = 0 };
@@ -79,9 +79,9 @@ LIMINE_REQUEST volatile uint64_t g_limine_base_revision[] = LIMINE_BASE_REVISION
 
 
 static bool limine_core_is_bsp(uint64_t limine_core_index) {
-#if defined(__ARCH_X86_64__)
+#if defined(__x86_64__)
     return (g_mp_request.response->cpus[limine_core_index]->lapic_id == g_mp_request.response->bsp_lapic_id);
-#elif defined(__ARCH_RISCV64__)
+#elif defined(__riscv) && __riscv_xlen == 64
     return (g_mp_request.response->cpus[limine_core_index]->hartid == g_mp_request.response->bsp_hartid);
 #else
 #error "Unknown architecture"
@@ -151,7 +151,7 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
     }
     boot_info->hhdm_offset = g_hhdm_request.response->offset;
 
-#ifdef __ARCH_RISCV64__
+#if defined(__riscv) && __riscv_xlen == 64
     boot_info->riscv_base_isa_string = nullptr;
     boot_info->riscv_extension_count = 0;
     boot_info->riscv_extentions = nullptr;

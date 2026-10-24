@@ -81,7 +81,7 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
     if(boot_info->rdsp_physical) { log_print("acpi: supported\n"); }
     if(boot_info->dtb_physical) { log_print("dtb: supported\n"); }
 
-#ifdef __ARCH_RISCV64__
+#if defined(__riscv) && __riscv_xlen == 64
     boot_info->riscv_base_isa_string = nullptr;
     boot_info->riscv_extension_count = 0;
     boot_info->riscv_extentions = nullptr;

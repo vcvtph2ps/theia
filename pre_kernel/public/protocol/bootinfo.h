@@ -9,7 +9,7 @@
 typedef struct [[gnu::packed]] {
     size_t pagedb_entry_size;
     size_t cpu_local_size;
-#ifdef __ARCH_RISCV64__
+#if defined(__riscv) && __riscv_xlen == 64
     uintptr_t global_pointer;
 #endif
 } bootinfo_kernel_info_t;
@@ -122,7 +122,7 @@ typedef struct [[gnu::packed]] {
     // @note: can be nullptr if not provided
     char* command_line;
 
-#ifdef __ARCH_RISCV64__
+#if defined(__riscv) && __riscv_xlen == 64
     char* riscv_base_isa_string;
     size_t riscv_extension_count;
     char* (*riscv_extentions)[];

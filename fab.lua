@@ -127,7 +127,6 @@ if opt_arch == "x86_64" then
         "-mgeneral-regs-only",
         "-mabi=sysv",
         "-mcmodel=kernel",
-        "-D__ARCH_X86_64__"
     })
 elseif opt_arch == "riscv64" then
     table.extend(c_flags, {
@@ -136,8 +135,7 @@ elseif opt_arch == "riscv64" then
         "-mabi=lp64",
         "-mcmodel=medany",
         "-mno-relax",
-        "-msmall-data-limit=8",
-        "-D__ARCH_RISCV64__"
+        "-msmall-data-limit=8"
     })
 end
 

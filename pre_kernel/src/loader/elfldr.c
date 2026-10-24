@@ -39,9 +39,9 @@ typedef struct {
 #define EMACHINE_X86_64 62
 #define EMACHINE_RISCV 243
 
-#if defined(__ARCH_X86_64__)
+#if defined(__x86_64__)
 #define EMACHINE_EXPECTED EMACHINE_X86_64
-#elif defined(__ARCH_RISCV64__)
+#elif defined(__riscv) && __riscv_xlen == 64
 #define EMACHINE_EXPECTED EMACHINE_RISCV
 #else
 #error "Unknown architecture"
