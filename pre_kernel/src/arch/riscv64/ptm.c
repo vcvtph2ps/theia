@@ -40,6 +40,27 @@ static size_t detect_max_level_count() {
 }
 
 
+// Replaces a PTE with a table mapping the same physical memory using pages one level smaller
+static void split_leaf_pte(uint64_t* table, unsigned int idx, int level) {
+    if(level < 2) panic("ptm: cannot split page at level %d", level);
+
+    uint64_t entry = table[idx];
+    uint64_t base = ((entry >> PTE_PPN_SHIFT) & PTE_PPN_MASK) << 12;
+    // everything but the PPN field is inherited by the children
+    uint64_t leaf_flags = entry & ~(PTE_PPN_MASK << PTE_PPN_SHIFT);
+    uint64_t child_size = PAGE_SIZE_AT_LEVEL(level - 1);
+
+    uint64_t* child_table = (uint64_t*) ((uintptr_t) pmm_alloc(1) + g_globals_boot_info->hhdm_offset);
+    memset(child_table, 0, PTM_PAGE_GRANULARITY);
+
+    for(int i = 0; i < 512; i++) {
+        uint64_t child_paddr = base + ((uint64_t) i * child_size);
+        child_table[i] = (PA_TO_PPN(child_paddr) << PTE_PPN_SHIFT) | leaf_flags;
+    }
+
+    table[idx] = (PA_TO_PPN(child_table) << PTE_PPN_SHIFT) | PTE_V;
+}
+
 static void map_page(uintptr_t root_pa, size_t total_levels, uint64_t vaddr, uint64_t paddr, int target_level, uint8_t flags) {
     if(target_level < 1 || (size_t) target_level > total_levels) panic("ptm: invalid target_level %d (total=%zu)", target_level, total_levels);
 
@@ -60,7 +81,8 @@ static void map_page(uintptr_t root_pa, size_t total_levels, uint64_t vaddr, uin
             entry = (PA_TO_PPN(child_phys) << PTE_PPN_SHIFT) | PTE_V;
             table[idx] = entry;
         } else if(entry & (PTE_R | PTE_W | PTE_X)) {
-            panic("ptm: walked into existing leaf PTE at level %d (vaddr=0x%lx)", level, vaddr);
+            split_leaf_pte(table, idx, level);
+            entry = table[idx];
         }
 
         table = (uint64_t*) (PTE_TO_PA(entry) + g_globals_boot_info->hhdm_offset);

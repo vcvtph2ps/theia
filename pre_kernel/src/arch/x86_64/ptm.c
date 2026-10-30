@@ -12,6 +12,12 @@
 
 #define ENTRY_FLAG_PRESENT (1 << 0)
 #define ENTRY_FLAG_RW (1 << 1)
+#define ENTRY_FLAG_USER (1 << 2)
+#define ENTRY_FLAG_PWT (1 << 3)
+#define ENTRY_FLAG_PCD (1 << 4)
+#define ENTRY_FLAG_ACCESSED (1 << 5)
+#define ENTRY_FLAG_DIRTY (1 << 6)
+#define ENTRY_FLAG_GLOBAL (1 << 8)
 #define ENTRY_FLAG_NX ((uint64_t) 1 << 63)
 
 #define ENTRYH_FLAG_PS (1 << 7)
@@ -52,6 +58,55 @@ void ptm_init() {
 }
 
 
+static uint64_t page_size_at_level(int level) {
+    return (uint64_t) PTM_PAGE_SIZE_4K << (9 * (level - 1));
+}
+
+static uint64_t address_mask_at_level(int level) {
+    switch(level) {
+        case 1:  return ENTRY_4K_ADDRESS_MASK;
+        case 2:  return ENTRY_2M_ADDRESS_MASK;
+        default: return ENTRY_1G_ADDRESS_MASK;
+    }
+}
+
+// Replaces a PTE with a table mapping the same physical memory using pages one level smaller
+static void split_huge_page(uint64_t* table, int index, int level) {
+    if(level < 2 || level > 3) panic("cannot split page at level %d", level);
+
+    uint64_t entry = table[index];
+    uint64_t base = entry & address_mask_at_level(level);
+    uint64_t child_size = page_size_at_level(level - 1);
+    uint64_t child_mask = address_mask_at_level(level - 1);
+    bool pat = (entry & ENTRY_FLAG_PAT_LARGE) != 0;
+
+    uint64_t child_flags = entry & (ENTRY_FLAG_PRESENT | ENTRY_FLAG_RW | ENTRY_FLAG_USER | ENTRY_FLAG_PWT | ENTRY_FLAG_PCD | ENTRY_FLAG_ACCESSED | ENTRY_FLAG_DIRTY | ENTRY_FLAG_GLOBAL | ENTRY_FLAG_NX);
+
+    uint64_t* child_table = (uint64_t*) ((uintptr_t) pmm_alloc(1) + g_globals_boot_info->hhdm_offset);
+    memset(child_table, 0, PTM_PAGE_GRANULARITY);
+
+    for(int i = 0; i < 512; i++) {
+        uint64_t child_paddr = base + ((uint64_t) i * child_size);
+        uint64_t child_entry = child_flags | (child_paddr & child_mask);
+
+        if(level - 1 == 1) {
+            if(pat) child_entry |= ENTRY_FLAG_PAT_4K;
+        } else {
+            child_entry |= ENTRYH_FLAG_PS;
+            if(pat) child_entry |= ENTRY_FLAG_PAT_LARGE;
+        }
+
+        child_table[i] = child_entry;
+    }
+
+    uint64_t table_flags = ENTRY_FLAG_PRESENT;
+    if(entry & ENTRY_FLAG_RW) table_flags |= ENTRY_FLAG_RW;
+    if(entry & ENTRY_FLAG_USER) table_flags |= ENTRY_FLAG_USER;
+    if(entry & ENTRY_FLAG_NX) table_flags |= ENTRY_FLAG_NX;
+
+    table[index] = table_flags | ((uintptr_t) child_table & ENTRY_4K_ADDRESS_MASK);
+}
+
 static void map_page(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t paddr, ptm_page_size_t page_size, bool rw, bool nx, bool wc) {
     int lowest_level;
     switch(page_size) {
@@ -69,13 +124,13 @@ static void map_page(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t
             uint64_t* new_table = pmm_alloc(1);
             memset((void*) (((uintptr_t) new_table) + g_globals_boot_info->hhdm_offset), 0, PTM_PAGE_GRANULARITY);
             entry = ENTRY_FLAG_PRESENT | ((uint64_t) (uintptr_t) new_table & ENTRY_4K_ADDRESS_MASK);
-            if(nx) entry |= ENTRY_FLAG_NX;
-        } else {
-            if((entry & ENTRYH_FLAG_PS) != 0) panic("cannot remap over a non-4k page %lx", entry & ENTRY_4K_ADDRESS_MASK);
-            if(!nx) entry &= ~ENTRY_FLAG_NX;
+        } else if((entry & ENTRYH_FLAG_PS) != 0) {
+            split_huge_page(current_table, index, level);
+            entry = current_table[index];
         }
-        if(rw) entry |= ENTRY_FLAG_RW;
 
+        if(!nx) entry &= ~ENTRY_FLAG_NX;
+        if(rw) entry |= ENTRY_FLAG_RW;
         if(current_table[index] != entry) current_table[index] = entry;
 
         current_table = (uint64_t*) ((entry & ENTRY_4K_ADDRESS_MASK) + g_globals_boot_info->hhdm_offset);
