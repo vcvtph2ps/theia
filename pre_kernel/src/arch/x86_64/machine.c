@@ -3,12 +3,17 @@
 #include <arch/cr.h>
 #include <arch/gdt.h>
 #include <arch/msr.h>
+#include <globals.h>
 #include <log.h>
+#include <memory/pmm.h>
+#include <memory/ptm.h>
 #include <panic.h>
 #include <runtime/mem.h>
 #include <stdint.h>
 
 #include "boot/core.h"
+
+#define CORE_STACK_PGCNT 16
 
 #define PAT_UNCACHEABLE 0ULL
 #define PAT_WRITE_COMBINING 1ULL
@@ -73,7 +78,8 @@ static void machine_setup_control_registers(uint64_t core_id) {
         if(core_id == 0) log_print_raw("PGE, ");
     }
 
-    if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_NX_PAGES)) if(core_id == 0) log_print_raw("NX, ");
+    if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_NX_PAGES))
+        if(core_id == 0) log_print_raw("NX, ");
     if(core_id == 0) log_print_raw("\b\b]\n");
 
     arch_cr_write_cr4(cr4);
@@ -109,8 +115,16 @@ static void machine_setup_gdt(arch_core_start_info_t* block) {
     arch_ldt_load_ldt(0x00);
 }
 
-void arch_machine_init(core_start_info_t* core_info) {
-    arch_core_start_info_t* core_arch_info = (arch_core_start_info_t*) core_info->arch_pointer;
+void arch_machine_init(core_start_info_t* core_info, bootinfo_kernel_info_t* kernel_info) {
+    (void) kernel_info;
+
+    core_info->stack = ((uintptr_t) pmm_alloc(CORE_STACK_PGCNT) + g_globals_boot_info->hhdm_offset) + (CORE_STACK_PGCNT * PTM_PAGE_GRANULARITY);
+
+    // Only the bsp is brought up by the prekernel, the kernel is responsible for allocating the machine state of the application processors.
+    arch_core_start_info_t* core_arch_info = (arch_core_start_info_t*) ((uintptr_t) pmm_alloc(1) + g_globals_boot_info->hhdm_offset);
+    memset(core_arch_info, 0, PTM_PAGE_GRANULARITY);
+    core_info->arch_pointer = core_arch_info;
+
     machine_setup_control_registers(core_info->core_id);
     machine_setup_gdt(core_arch_info);
     arch_msr_write(ARCH_MSR_ACTIVE_GS_BASE, core_info->cpu_local);

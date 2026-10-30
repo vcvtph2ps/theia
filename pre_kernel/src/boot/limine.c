@@ -12,10 +12,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-[[noreturn]] static void limine_ap_entry(struct limine_mp_info* mp_info) {
-    prekernel_init_ap((core_start_info_t*) mp_info->extra_argument);
-}
-
 #define LIMINE_REQUEST [[gnu::used, gnu::section(".limine_requests")]]
 [[noreturn, gnu::used]] void prekernel_entry_limine();
 
@@ -36,10 +32,11 @@ LIMINE_REQUEST volatile struct limine_paging_mode_request g_paging_mode_request 
 };
 #endif
 
-#ifdef __x86_64__
-LIMINE_REQUEST volatile struct limine_mp_request g_mp_request = { .id = LIMINE_MP_REQUEST_ID, .revision = 0, .response = nullptr, .flags = LIMINE_MP_REQUEST_X86_64_X2APIC };
-#else
-LIMINE_REQUEST volatile struct limine_mp_request g_mp_request = { .id = LIMINE_MP_REQUEST_ID, .revision = 0, .response = nullptr, .flags = 0 };
+#if defined(__riscv) && __riscv_xlen == 64
+LIMINE_REQUEST volatile struct limine_riscv_bsp_hartid_request g_riscv_bsp_hartid_request = {
+    .id = LIMINE_RISCV_BSP_HARTID_REQUEST_ID,
+    .revision = 0,
+};
 #endif
 
 LIMINE_REQUEST volatile struct limine_rsdp_request g_rsdp_request = {
@@ -77,22 +74,6 @@ LIMINE_REQUEST volatile uint64_t g_limine_base_revision[] = LIMINE_BASE_REVISION
 [[gnu::used, gnu::section(".limine_requests_start")]] volatile uint64_t g_limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 [[gnu::used, gnu::section(".limine_requests_end")]] volatile uint64_t g_limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-
-static bool limine_core_is_bsp(uint64_t limine_core_index) {
-#if defined(__x86_64__)
-    return (g_mp_request.response->cpus[limine_core_index]->lapic_id == g_mp_request.response->bsp_lapic_id);
-#elif defined(__riscv) && __riscv_xlen == 64
-    return (g_mp_request.response->cpus[limine_core_index]->hartid == g_mp_request.response->bsp_hartid);
-#else
-#error "Unknown architecture"
-#endif
-}
-
-static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_info) {
-    struct limine_mp_info* cpu = g_mp_request.response->cpus[limine_core_index];
-    __atomic_store_n(&cpu->extra_argument, (uint64_t) boot_info, __ATOMIC_SEQ_CST);
-    __atomic_store_n(&cpu->goto_address, limine_ap_entry, __ATOMIC_SEQ_CST);
-}
 
 [[noreturn, gnu::used]] void prekernel_entry_limine() {
     if(LIMINE_LOADED_BASE_REVISION_VALID(g_limine_base_revision)) {
@@ -136,7 +117,9 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
     boot_info_block_size = MATH_ALIGN_UP(boot_info_block_size, PTM_PAGE_GRANULARITY);
 
     bootinfo_t* boot_info = (bootinfo_t*) ((uintptr_t) pmm_alloc(boot_info_block_size / PTM_PAGE_GRANULARITY) + g_hhdm_request.response->offset);
-    boot_info->core_count = g_mp_request.response->cpu_count;
+    // set by the prekernel once cpus have been discovered.
+    boot_info->core_count = 1;
+    boot_info->cpus = nullptr;
     boot_info->boot_timestamp = g_boottime_request.response->timestamp;
     boot_info->rdsp_physical = 0;
     boot_info->dtb_physical = 0;
@@ -150,6 +133,13 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
         boot_info->dtb_physical = (uintptr_t) g_dtb_request.response->dtb_ptr - g_hhdm_request.response->offset;
     }
     boot_info->hhdm_offset = g_hhdm_request.response->offset;
+
+#if defined(__riscv) && __riscv_xlen == 64
+    if(g_riscv_bsp_hartid_request.response) {
+        g_boot_bsp_arch_id = g_riscv_bsp_hartid_request.response->bsp_hartid;
+        log_print("riscv: boot hart id %lu\n", g_boot_bsp_arch_id);
+    }
+#endif
 
 #if defined(__riscv) && __riscv_xlen == 64
     boot_info->riscv_base_isa_string = nullptr;
@@ -215,9 +205,6 @@ static void limine_start_ap(uint64_t limine_core_index, core_start_info_t* boot_
         boot_info_block_pointer += sizeof(bootinfo_module_t);
         module_name_block += strlen(limine_module->path) + 1;
     }
-
-    g_boot_core_is_bsp = limine_core_is_bsp;
-    g_boot_start_ap = limine_start_ap;
 
     prekernel_init(boot_info);
     while(1);

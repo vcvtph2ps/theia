@@ -10,21 +10,26 @@
 void arch_init_early();
 
 /**
+ * @brief Architecture specific ID of the bootstrap processor (lapic id on x86_64, hart id on riscv64)
+ */
+uint64_t arch_smp_bsp_id();
+
+/**
+ * @brief Discover CPUs from the device tree
+ * @note Only used when ACPI is unavailable
+ */
+void arch_smp_discover_dtb();
+
+/**
  * @brief Output a character to the debug console (e.g. serial port).
  */
 void arch_debug_putc(char c);
 
 /**
- * @brief Allocate per core resources and start APs
- * @note index 0 for the info block is reserved for the BSP
+ * @brief Machine initialisation for the bootstrap processor
+ * @note Called on the BSP before handoff
  */
-void arch_setup_cpus(core_start_info_t* core_start_info_block, size_t core_count, bootinfo_kernel_info_t* kernel_image_info);
-
-/**
- * @brief Per core machine initialisation
- * @note Called on every core (BSP and each AP) before handoff.
- */
-void arch_machine_init(core_start_info_t* core_info);
+void arch_machine_init(core_start_info_t* core_info, bootinfo_kernel_info_t* kernel_info);
 
 /**
  * @brief Prepare the kernel handoff trampoline.
@@ -36,7 +41,7 @@ void arch_prepare_handoff();
  * @brief Handoff to the kernel
  * @param boot_info only passed to the kernel on the BSP
  */
-[[noreturn]] void arch_handoff_to_kernel(bootinfo_kernel_entry_point_t entry, uintptr_t stack, bootinfo_t* boot_info, uint64_t core_id);
+[[noreturn]] void arch_handoff_to_kernel(bootinfo_kernel_entry_point_t entry, uintptr_t stack, bootinfo_t* boot_info);
 
 /**
  * @brief Hint to the CPU that we are in a spin wait loop.

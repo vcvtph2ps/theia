@@ -1,4 +1,5 @@
 #pragma once
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -86,8 +87,15 @@ typedef struct [[gnu::packed]] {
 } bootinfo_mm_entry_t;
 
 typedef struct [[gnu::packed]] {
+    /// architecture specific id (lapic id on x86_64, hart id on riscv64).
+    uint64_t arch_id;
+
+    /// whether this processor is the bootstrap processor.
+    bool is_bsp;
+} bootinfo_cpu_t;
+
+typedef struct [[gnu::packed]] {
     uint64_t boot_timestamp;
-    uint64_t core_count;
 
     // @note: can be 0 if not provided
     uintptr_t rdsp_physical;
@@ -106,6 +114,10 @@ typedef struct [[gnu::packed]] {
 
     uintptr_t cpulocal_start;
     uintptr_t cpulocal_size;
+
+    /// @note: the bootstrap processor is always the first entry, you can use indexes into this array for core ids
+    uint64_t core_count;
+    bootinfo_cpu_t* cpus;
 
     size_t mm_entry_count;
     bootinfo_mm_entry_t* mm_entries;
@@ -129,4 +141,4 @@ typedef struct [[gnu::packed]] {
 #endif
 } bootinfo_t;
 
-typedef void (*bootinfo_kernel_entry_point_t)(bootinfo_t* boot_info, uint64_t core_id);
+typedef void (*bootinfo_kernel_entry_point_t)(bootinfo_t* boot_info);

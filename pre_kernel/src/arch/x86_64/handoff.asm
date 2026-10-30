@@ -5,7 +5,6 @@ global x86_64_kernel_handoff_end
 ; rsi = stack pointer
 ; rdx = top level page tables
 ; rcx = boot info pointer
-; r8 = current core id
 x86_64_kernel_handoff:
     mov cr3, rdx ; load the page tables
 
@@ -19,7 +18,6 @@ x86_64_kernel_handoff:
     push rdi
 
     mov rdi, rcx
-    mov rsi, r8
 
     xor rbx, rbx
     xor rcx, rcx

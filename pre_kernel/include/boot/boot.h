@@ -1,9 +1,7 @@
 #pragma once
-#include <boot/core.h>
 #include <stdint.h>
 
-typedef bool (*boot_core_is_bsp_fn)(uint64_t core_index);
-typedef void (*boot_start_ap_fn)(uint64_t core_index, core_start_info_t* boot_info);
+#define BOOT_BSP_ARCH_ID_UNKNOWN UINT64_MAX
 
-extern boot_core_is_bsp_fn g_boot_core_is_bsp;
-extern boot_start_ap_fn g_boot_start_ap;
+// architecture specific id of the bootstrap processor (lapic id on x86_64, hart id on riscv64).
+extern uint64_t g_boot_bsp_arch_id;

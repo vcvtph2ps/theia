@@ -14,21 +14,6 @@
 
 static tartarus_boot_info_t* g_tartarus_boot_info;
 
-static bool tartarus_core_is_bsp(uint64_t tartarus_core_index) {
-    return (g_tartarus_boot_info->cpus[tartarus_core_index].flags & TARTARUS_CPU_FLAG_IS_BSP) != 0;
-}
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Waddress-of-packed-member"
-__attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer bug
-static void tartarus_start_ap(uint64_t tartarus_core_index, core_start_info_t* boot_info) {
-    tartarus_cpu_t* cpu = &g_tartarus_boot_info->cpus[tartarus_core_index];
-    __atomic_store_n(cpu->argument, (uint64_t) boot_info, __ATOMIC_SEQ_CST);
-    // @note: this can be used directly since tartarus just passes argument in rdi
-    __atomic_store_n(cpu->park_address, (uintptr_t) prekernel_init_ap, __ATOMIC_SEQ_CST);
-}
-#pragma clang diagnostic pop
-
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wmissing-prototypes"
 
@@ -69,7 +54,9 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
     boot_info_block_size = MATH_ALIGN_UP(boot_info_block_size, PTM_PAGE_GRANULARITY);
 
     bootinfo_t* boot_info = (bootinfo_t*) ((uintptr_t) pmm_alloc(boot_info_block_size / PTM_PAGE_GRANULARITY) + tartarus_boot_info->hhdm_offset);
-    boot_info->core_count = tartarus_boot_info->cpu_count;
+    // set by the prekernel once cpus have been discovered.
+    boot_info->core_count = 1;
+    boot_info->cpus = nullptr;
     boot_info->boot_timestamp = tartarus_boot_info->boot_timestamp;
     boot_info->command_line = nullptr;
 
@@ -134,9 +121,6 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
         boot_info_block_pointer += sizeof(bootinfo_module_t);
         module_name_block += strlen(tartarus_module->name) + 1;
     }
-
-    g_boot_start_ap = tartarus_start_ap;
-    g_boot_core_is_bsp = tartarus_core_is_bsp;
 
     prekernel_init(boot_info);
     while(1);

@@ -2,8 +2,7 @@
 
 #include "tartarus.h"
 
-boot_core_is_bsp_fn g_boot_core_is_bsp = nullptr;
-boot_start_ap_fn g_boot_start_ap = nullptr;
+uint64_t g_boot_bsp_arch_id = BOOT_BSP_ARCH_ID_UNKNOWN;
 
 [[noreturn, gnu::used]] void prekernel_entry_tartarus(tartarus_boot_info_t* tartarus_boot_info, uint16_t version);
 

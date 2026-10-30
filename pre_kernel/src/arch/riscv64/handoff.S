@@ -2,7 +2,6 @@
 // a1 = stack pointer
 // a2 = new satp value
 // a3 = boot info pointer
-// a4 = current core id
 .section .text
 .balign 4
 .global riscv64_kernel_handoff
@@ -18,7 +17,6 @@ riscv64_kernel_handoff:
     sfence.vma zero, zero
 
     mv      a0, a3
-    mv      a1, a4
 
     li      a2,  0
     li      a3,  0
