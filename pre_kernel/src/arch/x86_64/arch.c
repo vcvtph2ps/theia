@@ -8,6 +8,7 @@
 #include <log.h>
 #include <memory/pmm.h>
 #include <memory/ptm.h>
+#include <panic.h>
 #include <runtime/mem.h>
 
 typedef void (*x86_64_kernel_entry_t)(bootinfo_kernel_entry_point_t entry, uintptr_t stack, uintptr_t page_tables, bootinfo_t* boot_info);
@@ -38,14 +39,19 @@ void arch_prepare_handoff() {
     void* boot_trampoline_alloc = pmm_alloc(size);
     memcpy((void*) ((uintptr_t) boot_trampoline_alloc + g_globals_boot_info->hhdm_offset), (void*) x86_64_kernel_handoff, (uintptr_t) (x86_64_kernel_handoff_end - x86_64_kernel_handoff));
 
-    // @todo: this fucking sucks...
+    // @note: when enabling 5 level paging we have to drop to protected mode with paging disabled, which means the trampoline must live below 4 GiB and be identity mapped
+    uintptr_t trampoline_pa = (uintptr_t) boot_trampoline_alloc;
+    uintptr_t trampoline_size = size * PTM_PAGE_GRANULARITY;
+    if(trampoline_pa + trampoline_size > 0x1'0000'0000) { panic("boot trampoline must be below 4GiB"); }
+
     uintptr_t current_cr3 = arch_cr_read_cr3();
     uintptr_t level_count = (arch_cr_read_cr4() & (1u << 12)) ? 5u : 4u;
+    uint8_t trampoline_flags = PTM_FLAG_READ | PTM_FLAG_WRITE | PTM_FLAG_EXEC;
 
-    ptm_map_at(current_cr3, level_count, MEMORY_KERNELSPACE_END, (uintptr_t) boot_trampoline_alloc, size * PTM_PAGE_GRANULARITY, PTM_FLAG_READ | PTM_FLAG_EXEC);
-    ptm_map(MEMORY_KERNELSPACE_END, (uintptr_t) boot_trampoline_alloc, size * PTM_PAGE_GRANULARITY, PTM_FLAG_READ | PTM_FLAG_EXEC);
+    ptm_map_at(current_cr3, level_count, trampoline_pa, trampoline_pa, trampoline_size, trampoline_flags);
+    ptm_map(trampoline_pa, trampoline_pa, trampoline_size, trampoline_flags);
 
-    g_boot_trampoline = (x86_64_kernel_entry_t) MEMORY_KERNELSPACE_END;
+    g_boot_trampoline = (x86_64_kernel_entry_t) trampoline_pa;
 }
 
 __attribute__((no_sanitize("undefined"))) [[noreturn]] void arch_handoff_to_kernel(bootinfo_kernel_entry_point_t entry, uintptr_t stack, bootinfo_t* boot_info) {

@@ -107,8 +107,8 @@ static void machine_setup_gdt(arch_core_start_info_t* block) {
     gdtr.base = (uintptr_t) &block->gdt;
     gdtr.limit = sizeof(arch_gdt_t) - 1;
 
-    uint16_t cs = __builtin_offsetof(arch_gdt_t, kernel_code);
-    uint16_t ds = __builtin_offsetof(arch_gdt_t, kernel_data);
+    uint16_t cs = __builtin_offsetof(arch_gdt_t, code_64);
+    uint16_t ds = __builtin_offsetof(arch_gdt_t, data_64);
     uint16_t tr = __builtin_offsetof(arch_gdt_t, tss);
 
     arch_gdt_load_gdt(&gdtr, cs, ds, tr);

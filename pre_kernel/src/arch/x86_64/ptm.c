@@ -34,27 +34,20 @@
 ptm_t g_ptm = {};
 static bool g_x86_64_cpu_nx_support = false;
 static bool g_x86_64_cpu_pdpe1gb_support = false;
+[[gnu::used]] bool g_x86_64_cpu_la57_support = false;
 
 void ptm_init() {
     uintptr_t top_pagemap = (uintptr_t) pmm_alloc(1);
     memset((void*) (top_pagemap + g_globals_boot_info->hhdm_offset), 0, PTM_PAGE_GRANULARITY);
-    if(arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_LA57)) {
-        if(arch_cr_read_cr4() & (1 << 12)) {
-            g_ptm.level_count = 5;
-        } else {
-            log_print("LA57 supported but not enabled, falling back to 4-level paging\n");
-            g_ptm.level_count = 4;
-        }
-    } else {
-        g_ptm.level_count = 4;
-    }
+    g_x86_64_cpu_nx_support = arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_NX_PAGES);
+    g_x86_64_cpu_pdpe1gb_support = arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_PDPE1GB_PAGES);
+    g_x86_64_cpu_la57_support = arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_LA57);
+
+    g_ptm.level_count = g_x86_64_cpu_la57_support ? 5 : 4;
 
     g_ptm.tplt = top_pagemap;
 
-    g_x86_64_cpu_nx_support = arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_NX_PAGES);
-    g_x86_64_cpu_pdpe1gb_support = arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_PDPE1GB_PAGES);
-
-    log_print("ptm init: level=%zu, nx=%s, pdpe1gb=%s\n", g_ptm.level_count, g_x86_64_cpu_nx_support ? "available" : "not available", g_x86_64_cpu_pdpe1gb_support ? "available" : "not available");
+    log_print("ptm init: levels=%zu, nx=%s, pdpe1gb=%s\n", g_ptm.level_count, g_x86_64_cpu_nx_support ? "available" : "not available", g_x86_64_cpu_pdpe1gb_support ? "available" : "not available");
 }
 
 

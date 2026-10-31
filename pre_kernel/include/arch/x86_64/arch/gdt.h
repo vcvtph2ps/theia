@@ -18,11 +18,10 @@ typedef struct [[gnu::packed]] {
 
 typedef struct [[gnu::packed]] {
     arch_gdt_entry_t null;
-    arch_gdt_entry_t kernel_code;
-    arch_gdt_entry_t kernel_data;
-    arch_gdt_entry_t user_code_32;
-    arch_gdt_entry_t user_data;
-    arch_gdt_entry_t user_code;
+    arch_gdt_entry_t code_32;
+    arch_gdt_entry_t data_32;
+    arch_gdt_entry_t code_64;
+    arch_gdt_entry_t data_64;
     arch_gdt_system_entry_t tss;
 } arch_gdt_t;
 
