@@ -11,7 +11,7 @@
 #include <panic.h>
 #include <runtime/mem.h>
 
-typedef void (*x86_64_kernel_entry_t)(bootinfo_kernel_entry_point_t entry, uintptr_t stack, uintptr_t page_tables, bootinfo_t* boot_info);
+typedef void (*x86_64_kernel_entry_t)(bootinfo_kernel_entry_point_t entry, uintptr_t stack, uintptr_t page_tables, bootinfo_t* boot_info, uintptr_t la57_support);
 
 extern uint8_t x86_64_kernel_handoff[]; // NOLINT
 extern uint8_t x86_64_kernel_handoff_end[]; // NOLINT
@@ -55,6 +55,6 @@ void arch_prepare_handoff() {
 }
 
 __attribute__((no_sanitize("undefined"))) [[noreturn]] void arch_handoff_to_kernel(bootinfo_kernel_entry_point_t entry, uintptr_t stack, bootinfo_t* boot_info) {
-    g_boot_trampoline(entry, stack, g_ptm.tplt, boot_info);
+    g_boot_trampoline(entry, stack, g_ptm.tplt, boot_info, g_ptm.level_count == 5);
     __builtin_unreachable();
 }

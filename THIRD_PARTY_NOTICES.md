@@ -19,7 +19,7 @@ under `LICENSES/`.
 ## Tartarus bootloader protocol
 
 - Upstream: https://github.com/elysium-os/tartarus-bootloader
-- License: [BSD 3-Clause](https://github.com/elysium-os/tartarus-bootloader/blob/e95c3651f16d2560424c2d0d514aa8467d440053/LICENSE)
+- License: [BSD 3-Clause](https://github.com/elysium-os/tartarus-bootloader/blob/ed39178c4f8164f83c72ae94c10e0e501c429004/LICENSE)
 - License text: `LICENSES/tartarus-bootloader-BSD-3-Clause.txt`
 
 ---

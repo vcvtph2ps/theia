@@ -1,19 +1,16 @@
 global x86_64_kernel_handoff
 global x86_64_kernel_handoff_end
 
-extern g_x86_64_cpu_la57_support
-
 ; rdi = entry point
 ; rsi = stack pointer
 ; rdx = top level page tables
 ; rcx = boot info pointer
+; r8  = cpu la57 support (0 or 1)
 x86_64_kernel_handoff:
     cli
 
     ; test for cpu la57 support
-    mov rax, g_x86_64_cpu_la57_support
-    movzx ebx, byte [rax]
-    test ebx, ebx
+    test r8, r8
     jz .nola57
 
     ; test if we have la57 enabled

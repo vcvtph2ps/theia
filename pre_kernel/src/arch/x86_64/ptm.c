@@ -36,18 +36,26 @@ static bool g_x86_64_cpu_nx_support = false;
 static bool g_x86_64_cpu_pdpe1gb_support = false;
 [[gnu::used]] bool g_x86_64_cpu_la57_support = false;
 
-void ptm_init() {
+static void ptm_init_common(size_t level_count) {
     uintptr_t top_pagemap = (uintptr_t) pmm_alloc(1);
     memset((void*) (top_pagemap + g_globals_boot_info->hhdm_offset), 0, PTM_PAGE_GRANULARITY);
     g_x86_64_cpu_nx_support = arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_NX_PAGES);
     g_x86_64_cpu_pdpe1gb_support = arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_PDPE1GB_PAGES);
     g_x86_64_cpu_la57_support = arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_LA57);
 
-    g_ptm.level_count = g_x86_64_cpu_la57_support ? 5 : 4;
-
+    // @note: a level_count of 0 means "use the highest level the cpu supports"
+    g_ptm.level_count = level_count != 0 ? level_count : (g_x86_64_cpu_la57_support ? 5 : 4);
     g_ptm.tplt = top_pagemap;
 
     log_print("ptm init: levels=%zu, nx=%s, pdpe1gb=%s\n", g_ptm.level_count, g_x86_64_cpu_nx_support ? "available" : "not available", g_x86_64_cpu_pdpe1gb_support ? "available" : "not available");
+}
+
+void ptm_init() {
+    ptm_init_common(0);
+}
+
+void ptm_init_at_level(size_t level_count) {
+    ptm_init_common(level_count);
 }
 
 
@@ -75,7 +83,8 @@ static void split_huge_page(uint64_t* table, int index, int level) {
 
     uint64_t child_flags = entry & (ENTRY_FLAG_PRESENT | ENTRY_FLAG_RW | ENTRY_FLAG_USER | ENTRY_FLAG_PWT | ENTRY_FLAG_PCD | ENTRY_FLAG_ACCESSED | ENTRY_FLAG_DIRTY | ENTRY_FLAG_GLOBAL | ENTRY_FLAG_NX);
 
-    uint64_t* child_table = (uint64_t*) ((uintptr_t) pmm_alloc(1) + g_globals_boot_info->hhdm_offset);
+    uintptr_t child_table_phys = (uintptr_t) pmm_alloc(1);
+    uint64_t* child_table = (uint64_t*) (child_table_phys + g_globals_boot_info->hhdm_offset);
     memset(child_table, 0, PTM_PAGE_GRANULARITY);
 
     for(int i = 0; i < 512; i++) {
@@ -97,7 +106,7 @@ static void split_huge_page(uint64_t* table, int index, int level) {
     if(entry & ENTRY_FLAG_USER) table_flags |= ENTRY_FLAG_USER;
     if(entry & ENTRY_FLAG_NX) table_flags |= ENTRY_FLAG_NX;
 
-    table[index] = table_flags | ((uintptr_t) child_table & ENTRY_4K_ADDRESS_MASK);
+    table[index] = table_flags | (child_table_phys & ENTRY_4K_ADDRESS_MASK);
 }
 
 static void map_page(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t paddr, ptm_page_size_t page_size, bool rw, bool nx, bool wc) {

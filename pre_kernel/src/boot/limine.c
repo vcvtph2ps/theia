@@ -139,13 +139,10 @@ LIMINE_REQUEST volatile uint64_t g_limine_base_revision[] = LIMINE_BASE_REVISION
         g_boot_bsp_arch_id = g_riscv_bsp_hartid_request.response->bsp_hartid;
         log_print("riscv: boot hart id %lu\n", g_boot_bsp_arch_id);
     }
-#endif
 
-#if defined(__riscv) && __riscv_xlen == 64
     boot_info->riscv_base_isa_string = nullptr;
     boot_info->riscv_extension_count = 0;
     boot_info->riscv_extentions = nullptr;
-
 #endif
 
     uintptr_t boot_info_block_pointer = (uintptr_t) boot_info + sizeof(bootinfo_t);

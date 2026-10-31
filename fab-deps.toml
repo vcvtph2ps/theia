@@ -6,7 +6,7 @@ revision = "3a0526b700e356f0eac1b71a77697b3fd1c707a3"
 [tartarus]
 type = "git"
 url = "https://github.com/elysium-os/tartarus-bootloader.git"
-revision = "c951660a9a64a152b7c1fbc8ed37feba08555900"
+revision = "ed39178c4f8164f83c72ae94c10e0e501c429004"
 
 [uacpi]
 type = "git"
@@ -22,3 +22,8 @@ revision = "8f48565e5cfedc74d3f7512f1e0188e9d85dc1de"
 type = "git"
 url = "https://github.com/Mintsuki/Flanterm.git"
 revision = "e231edd0e508022521c8233392aabc8ce5c9b242"
+
+[theia-efi]
+type = "git"
+url = "https://github.com/vcvtph2ps/theia-efi.git"
+revision = "8bdda573e74ace43a1724098c6f2c41a35f09847"

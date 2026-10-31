@@ -31,7 +31,11 @@ typedef struct {
 
 extern ptm_t g_ptm;
 
+/// @brief Initialise the ptm, uses the highest level count the cpu supports
 void ptm_init();
+
+/// @brief Initialise the ptm with a specific paging level count.
+void ptm_init_at_level(size_t level_count);
 void ptm_map_framebuffers();
 void ptm_map(uint64_t vaddr, uint64_t paddr, uint64_t length, uint8_t flags);
 void ptm_map_at(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t paddr, uint64_t length, uint8_t flags);

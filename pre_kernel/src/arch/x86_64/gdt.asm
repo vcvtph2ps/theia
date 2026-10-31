@@ -11,7 +11,7 @@ arch_gdt_load_gdt:
 
     movzx rax, si
     push rax
-    lea rax, .reload_cs
+    lea rax, [rel .reload_cs]
     push rax
     retfq
 .reload_cs:

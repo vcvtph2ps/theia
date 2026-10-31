@@ -25,7 +25,7 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
 
     log_print_raw("\n");
     log_print("Tartarus protcol version: %u.%u\n", major, minor);
-    if(major != 4) { panic("Unsupported Tartarus protocol version\n"); }
+    if(major != 5) { panic("Unsupported Tartarus protocol version\n"); }
 
     for(size_t i = 0; i < tartarus_boot_info->mm_entry_count; i++) {
         tartarus_mm_entry_t* mm_entry = &tartarus_boot_info->mm_entries[i];
@@ -69,6 +69,13 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
     if(boot_info->dtb_physical) { log_print("dtb: supported\n"); }
 
 #if defined(__riscv) && __riscv_xlen == 64
+    for(size_t i = 0; i < tartarus_boot_info->cpu_count; i++) {
+        if(tartarus_boot_info->cpus[i].type == TARTARUS_CPU_TYPE_BSP) {
+            g_boot_bsp_arch_id = tartarus_boot_info->cpus[i].hart_id;
+            log_print("riscv: boot hart id %lu\n", g_boot_bsp_arch_id);
+        }
+    }
+
     boot_info->riscv_base_isa_string = nullptr;
     boot_info->riscv_extension_count = 0;
     boot_info->riscv_extentions = nullptr;

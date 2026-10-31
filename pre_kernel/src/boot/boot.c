@@ -1,8 +1,10 @@
 #include <boot/boot.h>
 
-#include "tartarus.h"
-
 uint64_t g_boot_bsp_arch_id = BOOT_BSP_ARCH_ID_UNKNOWN;
+
+#ifndef PREKERNEL_PLATFORM_EFI
+
+#include "tartarus.h"
 
 [[noreturn, gnu::used]] void prekernel_entry_tartarus(tartarus_boot_info_t* tartarus_boot_info, uint16_t version);
 
@@ -16,3 +18,5 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
 }
 
 #pragma clang diagnostic pop
+
+#endif
