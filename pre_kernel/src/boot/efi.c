@@ -9,6 +9,16 @@
 static void* g_memmap_buffer = nullptr;
 static size_t g_memmap_buffer_size = 0;
 
+/// @brief nanoprintf doesn't support wide strings, so we have to narrow a utf-16 string to utf-8,
+/// @note this is only safe for paths
+static const char* efi_path_narrow(const CHAR16* path) {
+    static char buffer[256];
+    size_t i = 0;
+    for(; path[i] != 0 && i < sizeof(buffer) - 1; i++) { buffer[i] = (char) path[i]; }
+    buffer[i] = '\0';
+    return buffer;
+}
+
 void* efi_alloc_pool(size_t size) {
     void* buffer = nullptr;
     EFI_STATUS status = g_efi_system_table->BootServices->AllocatePool(EfiLoaderData, size, &buffer);
@@ -98,7 +108,7 @@ bool efi_try_read_file(const CHAR16* path, void** out_data, size_t* out_size) {
         root->Close(root);
         return false;
     }
-    if(EFI_ERROR(status) || file == nullptr) { panic("failed to open %ls (status=0x%lx)", path, (uintptr_t) status); }
+    if(EFI_ERROR(status) || file == nullptr) { panic("failed to open %s (status=0x%lx)", efi_path_narrow(path), (uintptr_t) status); }
 
     EFI_GUID file_info_guid = EFI_FILE_INFO_ID;
     UINTN info_size = 256;
@@ -109,7 +119,7 @@ bool efi_try_read_file(const CHAR16* path, void** out_data, size_t* out_size) {
         info = (EFI_FILE_INFO*) efi_alloc_pool(info_size);
         status = file->GetInfo(file, &file_info_guid, &info_size, info);
     }
-    if(EFI_ERROR(status)) { panic("failed to query info for %ls (status=0x%lx)", path, (uintptr_t) status); }
+    if(EFI_ERROR(status)) { panic("failed to query info for %s (status=0x%lx)", efi_path_narrow(path), (uintptr_t) status); }
 
     size_t size = info->FileSize;
     efi_free_pool(info);
@@ -117,7 +127,7 @@ bool efi_try_read_file(const CHAR16* path, void** out_data, size_t* out_size) {
     void* data = efi_alloc_pool(size);
     UINTN read_size = size;
     status = file->Read(file, &read_size, data);
-    if(EFI_ERROR(status)) { panic("failed to read %ls (status=0x%lx)", path, (uintptr_t) status); }
+    if(EFI_ERROR(status)) { panic("failed to read %s (status=0x%lx)", efi_path_narrow(path), (uintptr_t) status); }
 
     file->Close(file);
     root->Close(root);
@@ -128,6 +138,6 @@ bool efi_try_read_file(const CHAR16* path, void** out_data, size_t* out_size) {
 }
 
 bool efi_read_file(const CHAR16* path, void** out_data, size_t* out_size) {
-    if(!efi_try_read_file(path, out_data, out_size)) { panic("required file %ls is missing from the ESP", path); }
+    if(!efi_try_read_file(path, out_data, out_size)) { panic("required file %s is missing from the ESP", efi_path_narrow(path)); }
     return true;
 }

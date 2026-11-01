@@ -241,18 +241,11 @@ if opt_arch == "riscv64" then
     table.insert(efi_include_dirs, c.include_dir(libfdt))
 end
 
--- Sources that rely on wide string literals need -fshort-wchar.
-local efi_wide_sources = sources(
-    project_dir / "pre_kernel/src/boot/efi.c",
-    project_dir / "pre_kernel/src/boot/efi_boot.c"
-)
 
 local efi_common_sources = sources(project_dir:glob("pre_kernel/src/**/*.c",
     "!pre_kernel/src/arch/**",
     "!pre_kernel/src/boot/limine.c",
-    "!pre_kernel/src/boot/tartarus.c",
-    "!pre_kernel/src/boot/efi.c",
-    "!pre_kernel/src/boot/efi_boot.c"))
+    "!pre_kernel/src/boot/tartarus.c"))
 
 table.extend(efi_common_sources, sources(project_dir:glob("pre_kernel/src/arch/" .. opt_arch .. "/**/*.c")))
 table.extend(efi_common_sources, sources(uacpi:glob("source/*.c")))
@@ -268,8 +261,6 @@ end
 
 local efi_objects = {}
 table.extend(efi_objects, compile_c(efi_strict_flags, efi_common_sources, efi_include_dirs, "efi_"))
-table.extend(efi_objects,
-    compile_c(with_flags(efi_strict_flags, { "-fshort-wchar" }), efi_wide_sources, efi_include_dirs, "efi_"))
 table.extend(efi_objects, compile_c(efi_strict_flags, efi_S_sources, efi_include_dirs, "efi_"))
 table.extend(efi_objects, compile_c(efi_dep_flags, sources(theia_efi / "src/relocate.c"), efi_include_dirs, "efi_"))
 table.extend(efi_objects,

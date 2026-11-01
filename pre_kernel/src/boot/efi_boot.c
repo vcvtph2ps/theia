@@ -23,8 +23,8 @@ typedef struct {
 } efi_module_def_t;
 
 static const efi_module_def_t g_module_defs[] = {
-    { L"\\boot\\initramfs.rdk.gz", "/boot/initramfs.rdk.gz" },
-    { L"\\boot\\kernel.ksym",      "/boot/kernel.ksym"      },
+    { u"\\boot\\initramfs.rdk.gz", "/boot/initramfs.rdk.gz" },
+    { u"\\boot\\kernel.ksym",      "/boot/kernel.ksym"      },
 };
 #define EFI_MODULE_COUNT (sizeof(g_module_defs) / sizeof(g_module_defs[0]))
 
@@ -113,7 +113,7 @@ static void load_modules(void) {
 static void read_cmdline(void) {
     void* data = nullptr;
     size_t size = 0;
-    if(!efi_try_read_file(L"\\boot\\cmdline.txt", &data, &size)) {
+    if(!efi_try_read_file(u"\\boot\\cmdline.txt", &data, &size)) {
         log_print("cmdline: could not fine \\boot\\cmdline.txt\n");
         return;
     }
