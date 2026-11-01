@@ -94,6 +94,10 @@ static uacpi_iteration_decision smp_madt_pass(uacpi_handle handle, struct acpi_e
         struct acpi_madt_lapic* lapic = (struct acpi_madt_lapic*) hdr;
         if((lapic->flags & ACPI_PIC_ENABLED) == 0) { return UACPI_ITERATION_DECISION_CONTINUE; }
         smp_add_cpu(lapic->id);
+    } else if(hdr->type == ACPI_MADT_ENTRY_TYPE_LOCAL_X2APIC) {
+        struct acpi_madt_x2apic* lapic = (struct acpi_madt_x2apic*) hdr;
+        if((lapic->flags & ACPI_PIC_ENABLED) == 0) { return UACPI_ITERATION_DECISION_CONTINUE; }
+        smp_add_cpu(lapic->id);
     }
 #elif defined(__riscv) && __riscv_xlen == 64
     if(hdr->type == ACPI_MADT_ENTRY_TYPE_RINTC) {
