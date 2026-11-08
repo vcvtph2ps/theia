@@ -114,7 +114,7 @@ static void read_cmdline(void) {
     void* data = nullptr;
     size_t size = 0;
     if(!efi_try_read_file(u"\\boot\\cmdline.txt", &data, &size)) {
-        log_print("cmdline: could not fine \\boot\\cmdline.txt\n");
+        log_print("cmdline: could not find \\boot\\cmdline.txt\n");
         return;
     }
 
