@@ -163,6 +163,7 @@ int arch_16550uart_data_ready() {
 }
 
 void arch_16550uart_send(char c) {
+    if(c == '\n') arch_16550uart_send('\r');
     for(int i = 0; i < 100000; i++) {
         if(arch_16550uart_transmit_empty()) break;
         asm volatile("pause");
@@ -181,10 +182,6 @@ int arch_16550uart_read() {
     return data;
 }
 
-static void serial_sink(int c, void* ctx) {
-    (void) ctx;
-    arch_16550uart_send((char) c);
-}
 
 void arch_16550uart_early_setup() {
     serial_set_interrupts(g_arch_16550uart_port, false);
