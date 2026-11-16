@@ -82,6 +82,8 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
     boot_info->riscv_timebase_frequency = 0;
 #endif
 
+    boot_info->serial = (bootinfo_serial_t) { .type = BOOTINFO_SERIAL_TYPE_NONE };
+
     uintptr_t boot_info_block_pointer = (uintptr_t) boot_info + sizeof(bootinfo_t);
 
     boot_info->framebuffer_count = tartarus_boot_info->framebuffer_count;

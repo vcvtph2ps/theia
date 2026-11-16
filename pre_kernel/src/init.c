@@ -13,7 +13,10 @@
 #include <protocol/bootinfo.h>
 #include <runtime/mem.h>
 #include <smp.h>
+#include <uacpi/acpi.h>
 #include <uacpi/status.h>
+#include <uacpi/tables.h>
+#include <uacpi/types.h>
 #include <uacpi/uacpi.h>
 
 static bootinfo_kernel_entry_point_t g_kernel_entry_point;
@@ -26,6 +29,33 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
 #define ANSI_HOME "\x1b[H"
 #define ANSI_RESET "\x1b[0m"
 
+static void find_serial_from_acpi(void) {
+    uacpi_table spcr_table;
+    if(uacpi_table_find_by_signature(ACPI_SPCR_SIGNATURE, &spcr_table) != UACPI_STATUS_OK) {
+        log_print("acpi: SPCR table not found\n");
+        return;
+    }
+
+    struct acpi_spcr* spcr = (struct acpi_spcr*) spcr_table.hdr;
+
+    bootinfo_serial_t serial = { .type = BOOTINFO_SERIAL_TYPE_NONE };
+    if(spcr->base_address.address != 0) {
+        if(spcr->base_address.address_space_id == UACPI_ADDRESS_SPACE_SYSTEM_MEMORY) {
+            serial.type = BOOTINFO_SERIAL_TYPE_MMIO;
+            serial.base = spcr->base_address.address;
+            serial.size = 0x1000;
+        } else if(spcr->base_address.address_space_id == UACPI_ADDRESS_SPACE_SYSTEM_IO) {
+            serial.type = BOOTINFO_SERIAL_TYPE_PIO;
+            serial.base = spcr->base_address.address;
+        }
+    }
+
+    g_globals_boot_info->serial = serial;
+    if(serial.type != BOOTINFO_SERIAL_TYPE_NONE) { log_print("acpi: serial %s base=0x%lx size=0x%lx\n", serial.type == BOOTINFO_SERIAL_TYPE_MMIO ? "mmio" : "pio", serial.base, serial.size); }
+
+    uacpi_table_unref(&spcr_table);
+}
+
 [[noreturn]] void prekernel_init(bootinfo_t* boot_info) {
     g_globals_boot_info = boot_info;
     arch_init_early();
@@ -34,6 +64,8 @@ extern uint8_t _binary_kernel_elf_start[]; // NOLINT
         uintptr_t temporary_buffer = (uintptr_t) pmm_alloc(2) + g_globals_boot_info->hhdm_offset;
         uacpi_status status = uacpi_setup_early_table_access((void*) temporary_buffer, PTM_PAGE_GRANULARITY * 2);
         if(status != UACPI_STATUS_OK) { panic("failed to setup acpi tables"); }
+
+        find_serial_from_acpi();
     }
 
     // Discover the cpus and hand the list to the kernel. The kernel is responsible for actually bringing up the application processors.

@@ -94,6 +94,25 @@ typedef struct [[gnu::packed]] {
     bool is_bsp;
 } bootinfo_cpu_t;
 
+/// @brief The kind of bus a serial device lives on
+typedef enum : uint8_t {
+    /// No serial device provided
+    BOOTINFO_SERIAL_TYPE_NONE = 0,
+    /// @ref bootinfo_serial::base is a physical address
+    BOOTINFO_SERIAL_TYPE_MMIO,
+    /// @ref bootinfo_serial::base is a port number
+    BOOTINFO_SERIAL_TYPE_PIO,
+} bootinfo_serial_type_t;
+
+/// @brief A serial device, discovered from ACPI / Device tree
+typedef struct [[gnu::packed]] {
+    bootinfo_serial_type_t type;
+    /// Port number or physical base address
+    uint64_t base;
+    /// Size of the register block in bytes (0 for PIO)
+    uint64_t size;
+} bootinfo_serial_t;
+
 typedef struct [[gnu::packed]] {
     uint64_t boot_timestamp;
 
@@ -133,6 +152,9 @@ typedef struct [[gnu::packed]] {
 
     // @note: can be nullptr if not provided
     char* command_line;
+
+    /// @note: type is BOOTINFO_SERIAL_TYPE_NONE if not provided.
+    bootinfo_serial_t serial;
 
 #if defined(__riscv) && __riscv_xlen == 64
     char* riscv_base_isa_string;

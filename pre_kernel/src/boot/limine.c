@@ -146,6 +146,8 @@ LIMINE_REQUEST volatile uint64_t g_limine_base_revision[] = LIMINE_BASE_REVISION
     boot_info->riscv_timebase_frequency = 0;
 #endif
 
+    boot_info->serial = (bootinfo_serial_t) { .type = BOOTINFO_SERIAL_TYPE_NONE };
+
     uintptr_t boot_info_block_pointer = (uintptr_t) boot_info + sizeof(bootinfo_t);
     if(g_cmdline_request.response != nullptr) {
         char* str = (char*) boot_info_block_pointer;

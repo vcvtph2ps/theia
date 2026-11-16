@@ -65,6 +65,56 @@ size_t arch_fdt_detect_mmu_levels() {
     return 0;
 }
 
+static void fdt_parse_serial(const void* fdt) {
+    static const char* compatibles[] = { "ns16550a", "ns16550", nullptr };
+
+    int offset = -1;
+    while(true) {
+        int node = fdt_next_node(fdt, offset, nullptr);
+        if(node < 0) { return; }
+
+        bool match = false;
+        for(size_t i = 0; compatibles[i] != nullptr; i++) {
+            if(fdt_node_check_compatible(fdt, node, compatibles[i]) == 0) {
+                match = true;
+                break;
+            }
+        }
+        if(!match) {
+            offset = node;
+            continue;
+        }
+
+        int parent = fdt_parent_offset(fdt, node);
+        if(parent < 0) { parent = node; }
+
+        int address_cells = fdt_address_cells(fdt, parent);
+        int size_cells = fdt_size_cells(fdt, parent);
+        if(address_cells < 0 || address_cells > 2) { address_cells = 2; }
+        if(size_cells < 0 || size_cells > 2) { size_cells = 2; }
+
+        int len = 0;
+        const fdt32_t* reg = (const fdt32_t*) fdt_getprop(fdt, node, "reg", &len);
+        if(reg == nullptr || len < (address_cells + size_cells) * (int) sizeof(fdt32_t)) {
+            offset = node;
+            continue;
+        }
+
+        uint64_t base = 0;
+        uint64_t size = 0;
+        for(int i = 0; i < address_cells; i++) { base = (base << 32) | fdt32_to_cpu(reg[i]); }
+        for(int i = 0; i < size_cells; i++) { size = (size << 32) | fdt32_to_cpu(reg[address_cells + i]); }
+
+        g_globals_boot_info->serial = (bootinfo_serial_t) {
+            .type = BOOTINFO_SERIAL_TYPE_MMIO,
+            .base = base,
+            .size = size,
+        };
+        log_print("fdt: serial mmio base=0x%lx size=0x%lx\n", base, size);
+        return;
+    }
+}
+
 bool arch_fdt_parse_extentions() {
     const void* fdt = (const void*) (g_globals_boot_info->dtb_physical + g_globals_boot_info->hhdm_offset);
 
@@ -75,6 +125,8 @@ bool arch_fdt_parse_extentions() {
     }
 
     log_print("fdt: FDT at phys 0x%lx, size=%d\n", g_globals_boot_info->dtb_physical, fdt_totalsize(fdt));
+
+    fdt_parse_serial(fdt);
 
     int cpus_node = fdt_path_offset(fdt, "/cpus");
     if(cpus_node < 0) {
