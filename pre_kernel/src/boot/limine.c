@@ -143,6 +143,7 @@ LIMINE_REQUEST volatile uint64_t g_limine_base_revision[] = LIMINE_BASE_REVISION
     boot_info->riscv_base_isa_string = nullptr;
     boot_info->riscv_extension_count = 0;
     boot_info->riscv_extentions = nullptr;
+    boot_info->riscv_timebase_frequency = 0;
 #endif
 
     uintptr_t boot_info_block_pointer = (uintptr_t) boot_info + sizeof(bootinfo_t);

@@ -71,6 +71,9 @@ bool arch_acpi_parse_extentions() {
         uint16_t length;
     };
 
+    g_globals_boot_info->riscv_timebase_frequency = rhct->timebase_frequency;
+    log_print("RHCT: timebase-frequency = %lu Hz\n", rhct->timebase_frequency);
+
     struct acpi_rhct_isa_string* isa_string_subtable = nullptr;
 
     size_t base = (size_t) rhct->nodes_offset;

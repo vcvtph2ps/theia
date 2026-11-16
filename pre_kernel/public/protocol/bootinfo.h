@@ -138,6 +138,8 @@ typedef struct [[gnu::packed]] {
     char* riscv_base_isa_string;
     size_t riscv_extension_count;
     char* (*riscv_extentions)[];
+
+    uint64_t riscv_timebase_frequency;
 #endif
 } bootinfo_t;
 

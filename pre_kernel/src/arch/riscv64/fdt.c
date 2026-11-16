@@ -82,6 +82,16 @@ bool arch_fdt_parse_extentions() {
         return false;
     }
 
+    int timebase_len = 0;
+    const fdt32_t* timebase = (const fdt32_t*) fdt_getprop(fdt, cpus_node, "timebase-frequency", &timebase_len);
+    if(timebase != nullptr && timebase_len >= (int) sizeof(fdt32_t)) {
+        g_globals_boot_info->riscv_timebase_frequency = fdt32_to_cpu(*timebase);
+        log_print("fdt: timebase-frequency = %lu Hz\n", g_globals_boot_info->riscv_timebase_frequency);
+    } else {
+        log_print("fdt: timebase-frequency not found in /cpus node\n");
+        g_globals_boot_info->riscv_timebase_frequency = 0;
+    }
+
     const char* isa_string = nullptr;
 
     int node;
