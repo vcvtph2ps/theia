@@ -5,6 +5,7 @@
 #include <arch/io.h>
 #include <log.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /* Serial Port Registers */
@@ -184,11 +185,21 @@ int arch_16550uart_read() {
 
 
 void arch_16550uart_early_setup() {
-    serial_set_interrupts(g_arch_16550uart_port, false);
-    int status = serial_test(g_arch_16550uart_port);
+    static const uint16_t default_ports[] = { 0x3F8, 0x2F8, 0x3E8, 0x2E8 };
+
+    int status = 0;
+    for(size_t i = 0; i < sizeof(default_ports) / sizeof(default_ports[0]); i++) {
+        serial_set_interrupts(default_ports[i], false);
+        status = serial_test(default_ports[i]);
+        if(status != 0) {
+            g_arch_16550uart_port = default_ports[i];
+            break;
+        }
+    }
+
     if(status == 0) {
         g_arch_16550uart_works = false;
-        log_print("16550uart Failed to init; Do you lack a serial port at I/O port 0x%x?\n", g_arch_16550uart_port);
+        log_print("16550uart Failed to init; Do you lack a serial port at I/O ports [0x3F8, 0x2F8, 0x3E8, 0x2E8]?\n");
         return;
     }
 

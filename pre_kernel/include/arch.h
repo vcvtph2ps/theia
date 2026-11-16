@@ -54,6 +54,11 @@ void arch_spin_hint();
  * @brief Setup PAT, needs to happen before any write combining mappings are used
  */
 void arch_setup_page_table_attributes();
+
+/**
+ * @brief Probes for a serial device the kernel can use when ACPI did not describe one
+ */
+bool arch_probe_serial(bootinfo_serial_t* out);
 #endif
 
 #if defined(__riscv) && __riscv_xlen == 64

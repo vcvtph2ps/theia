@@ -9,6 +9,9 @@
 
 extern bool g_arch_16550uart_works;
 
+/// @brief The I/O port the 16550 UART was discovered at.
+extern uint16_t g_arch_16550uart_port;
+
 void arch_16550uart_early_setup();
 int arch_16550uart_transmit_empty();
 int arch_16550uart_data_ready();

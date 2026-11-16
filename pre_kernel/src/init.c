@@ -68,6 +68,10 @@ static void find_serial_from_acpi(void) {
         find_serial_from_acpi();
     }
 
+#if defined(__x86_64__)
+    if(g_globals_boot_info->serial.type == BOOTINFO_SERIAL_TYPE_NONE) { arch_probe_serial(&g_globals_boot_info->serial); }
+#endif
+
     // Discover the cpus and hand the list to the kernel. The kernel is responsible for actually bringing up the application processors.
     smp_discover_cpus();
     boot_info->core_count = g_smp_cpu_count;

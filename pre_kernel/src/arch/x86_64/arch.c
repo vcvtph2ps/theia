@@ -22,6 +22,17 @@ void arch_spin_hint() {
     __builtin_ia32_pause();
 }
 
+bool arch_probe_serial(bootinfo_serial_t* out) {
+    if(!g_arch_16550uart_works) { return false; }
+
+    *out = (bootinfo_serial_t) {
+        .type = BOOTINFO_SERIAL_TYPE_PIO,
+        .base = g_arch_16550uart_port,
+        .size = 8,
+    };
+    return true;
+}
+
 void arch_init_early() {
     arch_16550uart_early_setup();
     arch_setup_page_table_attributes();
