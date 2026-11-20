@@ -27,3 +27,8 @@ revision = "e231edd0e508022521c8233392aabc8ce5c9b242"
 type = "git"
 url = "https://github.com/vcvtph2ps/theia-efi.git"
 revision = "8bdda573e74ace43a1724098c6f2c41a35f09847"
+
+[zstd]
+type = "git"
+url = "https://github.com/facebook/zstd.git"
+revision = "f8745da6ff1ad1e7bab384bd1f9d742439278e99"

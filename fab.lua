@@ -38,6 +38,23 @@ local tartarus_protocol = fab.dependency("tartarus")
 local uacpi = fab.dependency("uacpi")
 local flanterm = fab.dependency("flanterm")
 local theia_efi = fab.dependency("theia-efi")
+local zstd = fab.dependency("zstd")
+
+local python = fab.which("python3")
+assert(python ~= nil, "No python3 found")
+
+local zstd_gen_rule = fab.define_rule(
+    "gen_zstd_decoder",
+    python.path:gsub("@", "@@") .. " @IN@ " .. tostring(zstd) .. " @OUT@",
+    "Generating freestanding zstd decoder @OUT@"
+)
+local zstd_gen_script = fab.resolve_source(project_dir / "scripts/zstd/gen-decoder.py")
+local zstd_decoder = zstd_gen_rule:build("zstddeclib.c", { zstd_gen_script }, {}, {
+    fab.resolve_source(zstd / "lib/common/zstd_deps.h"),
+    fab.resolve_source(zstd / "lib/common/xxhash.h"),
+    fab.resolve_source(zstd / "build/single_file_libs/zstddeclib-in.c"),
+    fab.resolve_source(zstd / "build/single_file_libs/combine.py"),
+})
 
 local base_c_flags = {
     "-std=gnu23",
@@ -143,6 +160,20 @@ if opt_build_type == "debug" then
     table.extend(efi_strict_flags, { "-fsanitize=undefined" })
 end
 
+local zstd_legacy_flags = with_flags(c_flags, {
+    "-Os",
+    "-g0",
+    "-fomit-frame-pointer",
+    "-fno-sanitize=undefined",
+    "-fno-stack-protector",
+})
+local zstd_efi_flags = with_flags(efi_flags, {
+    "-Os",
+    "-g0",
+    "-fomit-frame-pointer",
+    "-fno-sanitize=undefined",
+})
+
 -- @brief Compile a list of sources with clang, giving each object a unique prefix.
 local function compile_c(flags, srcs, include_dirs, prefix)
     local objects = {}
@@ -163,7 +194,7 @@ local function assemble_nasm(srcs, prefix)
     return objects
 end
 
-local function get_prekernel_objs(flags, include_dirs)
+local function get_prekernel_objs(flags, include_dirs, zstd_flags)
     local pre_kernel_sources = sources(project_dir:glob("pre_kernel/src/**/*.c", "!pre_kernel/src/arch/**",
         "!pre_kernel/src/entry.c", "!pre_kernel/src/boot/efi.c", "!pre_kernel/src/boot/efi_boot.c",
         "!pre_kernel/src/boot/gop.c"))
@@ -190,7 +221,10 @@ local function get_prekernel_objs(flags, include_dirs)
         generators.S = function(srcs) return clang:generate(srcs, flags, include_dirs) end
     end
 
-    return generate(pre_kernel_sources, generators)
+    local objects = generate(pre_kernel_sources, generators)
+    table.insert(objects,
+        clang:compile_object("zstddeclib.o", zstd_decoder, {}, zstd_flags, "zstddeclib.o.d"))
+    return objects
 end
 
 local legacy_include_dirs = {
@@ -201,6 +235,7 @@ local legacy_include_dirs = {
     c.include_dir(tartarus_protocol),
     c.include_dir(flanterm / "src"),
     c.include_dir(uacpi / "include"),
+    c.include_dir(zstd / "lib"),
 }
 
 if opt_arch == "riscv64" then
@@ -215,7 +250,7 @@ local legacy_objects = {}
 local flanterm_objects = compile_c(other_flags, sources(flanterm:glob("src/*.c")), { c.include_dir(flanterm / "src") },
     "")
 table.extend(legacy_objects, flanterm_objects)
-table.extend(legacy_objects, get_prekernel_objs(kernel_flags, legacy_include_dirs))
+table.extend(legacy_objects, get_prekernel_objs(kernel_flags, legacy_include_dirs, zstd_legacy_flags))
 table.extend(legacy_objects, { fab.resolve_source(project_dir / "kernel.o") })
 
 local linker_script = fab.resolve_source(project_dir / ("support/linker-scripts/" .. opt_arch .. ".lds"))
@@ -232,6 +267,7 @@ local efi_include_dirs = {
     c.include_dir(flanterm / "src"),
     c.include_dir(uacpi / "include"),
     c.include_dir(theia_efi / "include"),
+    c.include_dir(zstd / "lib"),
 }
 
 if opt_arch == "riscv64" then
@@ -265,6 +301,8 @@ table.extend(efi_objects, compile_c(efi_strict_flags, efi_S_sources, efi_include
 table.extend(efi_objects, compile_c(efi_dep_flags, sources(theia_efi / "src/relocate.c"), efi_include_dirs, "efi_"))
 table.extend(efi_objects,
     compile_c(efi_dep_flags, sources(flanterm:glob("src/*.c")), { c.include_dir(flanterm / "src") }, "efi_"))
+table.insert(efi_objects,
+    clang:compile_object("efi_zstddeclib.o", zstd_decoder, {}, zstd_efi_flags, "efi_zstddeclib.o.d"))
 if efi_asm_sources ~= nil then
     table.extend(efi_objects, assemble_nasm(efi_asm_sources, "efi_"))
 end

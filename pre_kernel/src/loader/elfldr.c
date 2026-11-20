@@ -1,4 +1,4 @@
-#include <common/kgz.h>
+#include <common/zstd.h>
 #include <globals.h>
 #include <lib/math.h>
 #include <loader/elfldr.h>
@@ -82,7 +82,12 @@ typedef struct {
 
 static bool elf_needs_decompression(const elf64_elf_header_t* elf_header) {
     if(!elf_header) { return false; }
-    return elf_header->e_ident[0] == 0x1F && elf_header->e_ident[1] == 0x8B;
+    const uint8_t* magic = elf_header->e_ident;
+    // Standard zstd frame
+    if(magic[0] == 0x28 && magic[1] == 0xB5 && magic[2] == 0x2F && magic[3] == 0xFD) { return true; }
+    // Skippable frames
+    if(magic[0] >= 0x50 && magic[0] <= 0x5F && magic[1] == 0x2A && magic[2] == 0x4D && magic[3] == 0x18) { return true; }
+    return false;
 }
 
 static bool elf_supported(const elf64_elf_header_t* elf_header) {
@@ -196,15 +201,15 @@ static bool internal_elf_load_image(uintptr_t elf_data, elfldr_loader_info_t* lo
 
 bool elfldr_load_kernel(elfldr_loader_info_t* out_info) {
     elf64_elf_header_t* elf_data = (elf64_elf_header_t*) _binary_kernel_elf_start;
-    size_t compressed_buffer_size;
-    void* compressed_buffer;
+    size_t decompressed_buffer_size = 0;
+    void* decompressed_buffer = nullptr;
     if(elf_needs_decompression(elf_data)) {
-        compressed_buffer = kgz_gzip_decompress(elf_data, _binary_kernel_elf_end - _binary_kernel_elf_start, nullptr, &compressed_buffer_size);
-        if(compressed_buffer == nullptr) {
+        decompressed_buffer = zstd_decompress(elf_data, _binary_kernel_elf_end - _binary_kernel_elf_start, &decompressed_buffer_size);
+        if(decompressed_buffer == nullptr) {
             log_print("Failed to decompress elf file\n");
             return false;
         }
-        elf_data = (elf64_elf_header_t*) compressed_buffer;
+        elf_data = (elf64_elf_header_t*) decompressed_buffer;
     }
 
     if(!elf_supported(elf_data)) {
@@ -219,6 +224,6 @@ bool elfldr_load_kernel(elfldr_loader_info_t* out_info) {
         return false;
     }
 
-    if(compressed_buffer) { pmm_free((void*) ((uintptr_t) compressed_buffer - g_globals_boot_info->hhdm_offset), compressed_buffer_size / PTM_PAGE_GRANULARITY); }
+    if(decompressed_buffer) { pmm_free((void*) ((uintptr_t) decompressed_buffer - g_globals_boot_info->hhdm_offset), decompressed_buffer_size / PTM_PAGE_GRANULARITY); }
     return true;
 }

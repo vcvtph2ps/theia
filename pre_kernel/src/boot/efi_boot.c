@@ -23,7 +23,7 @@ typedef struct {
 } efi_module_def_t;
 
 static const efi_module_def_t g_module_defs[] = {
-    { u"\\boot\\initramfs.rdk.gz", "/boot/initramfs.rdk.gz" },
+    { u"\\boot\\initramfs.rdk.zst", "/boot/initramfs.rdk.zst" },
     { u"\\boot\\kernel.ksym",      "/boot/kernel.ksym"      },
 };
 #define EFI_MODULE_COUNT (sizeof(g_module_defs) / sizeof(g_module_defs[0]))
