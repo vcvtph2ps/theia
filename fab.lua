@@ -156,6 +156,8 @@ local efi_strict_flags = with_flags(efi_flags, warning_flags)
 
 table.extend(efi_strict_flags, { "-Wno-documentation" })
 local efi_dep_flags = with_flags(efi_flags, { "-Wall", "-Wextra" })
+local flanterm_flags = with_flags(other_flags, { "-DFLANTERM_FB_DISABLE_BUMP_ALLOC" })
+local efi_flanterm_flags = with_flags(efi_dep_flags, { "-DFLANTERM_FB_DISABLE_BUMP_ALLOC" })
 if opt_build_type == "debug" then
     table.extend(efi_strict_flags, { "-fsanitize=undefined" })
 end
@@ -247,7 +249,7 @@ if opt_arch == "riscv64" then
 end
 
 local legacy_objects = {}
-local flanterm_objects = compile_c(other_flags, sources(flanterm:glob("src/*.c")), { c.include_dir(flanterm / "src") },
+local flanterm_objects = compile_c(flanterm_flags, sources(flanterm:glob("src/*.c")), { c.include_dir(flanterm / "src") },
     "")
 table.extend(legacy_objects, flanterm_objects)
 table.extend(legacy_objects, get_prekernel_objs(kernel_flags, legacy_include_dirs, zstd_legacy_flags))
@@ -300,7 +302,7 @@ table.extend(efi_objects, compile_c(efi_strict_flags, efi_common_sources, efi_in
 table.extend(efi_objects, compile_c(efi_strict_flags, efi_S_sources, efi_include_dirs, "efi_"))
 table.extend(efi_objects, compile_c(efi_dep_flags, sources(theia_efi / "src/relocate.c"), efi_include_dirs, "efi_"))
 table.extend(efi_objects,
-    compile_c(efi_dep_flags, sources(flanterm:glob("src/*.c")), { c.include_dir(flanterm / "src") }, "efi_"))
+    compile_c(efi_flanterm_flags, sources(flanterm:glob("src/*.c")), { c.include_dir(flanterm / "src") }, "efi_"))
 table.insert(efi_objects,
     clang:compile_object("efi_zstddeclib.o", zstd_decoder, {}, zstd_efi_flags, "efi_zstddeclib.o.d"))
 if efi_asm_sources ~= nil then
