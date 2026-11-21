@@ -71,17 +71,59 @@ void pagedb_setup(uintptr_t kernel_base, size_t pagedb_entry_size, uintptr_t* pf
         }
     }
 
-    // @note: allocate the pagedb
+    // @note: count the present pages first so the bookkeeping list can be allocated in one go
     size_t present_count = 0;
     for(size_t page_index = 0; page_index < pagedb_page_count; page_index++) {
-        if((bitmap[page_index / 8] & (1 << (page_index % 8))) == 0) continue;
-
-        uintptr_t vaddr = pagedb_base + page_index * PTM_PAGE_GRANULARITY;
-        void* paddr = pmm_alloc_ext(1, PTM_PAGE_GRANULARITY, PMM_MAP_TYPE_USED);
-        memset((void*) ((uintptr_t) paddr + g_globals_boot_info->hhdm_offset), 0, PTM_PAGE_GRANULARITY);
-        ptm_map(vaddr, (uint64_t) (uintptr_t) paddr, PTM_PAGE_GRANULARITY, PTM_FLAG_READ | PTM_FLAG_WRITE);
-        present_count++;
+        if((bitmap[page_index / 8] & (1u << (page_index % 8))) != 0) present_count++;
     }
+
+    struct list_node {
+        struct list_node* next;
+        size_t page_index;
+        uintptr_t paddr;
+    };
+
+    struct list_node* head = nullptr;
+    struct list_node* tail = nullptr;
+
+    if(present_count != 0) {
+        size_t list_size = MATH_ALIGN_UP(present_count * sizeof(struct list_node), PTM_PAGE_GRANULARITY);
+        struct list_node* nodes = (struct list_node*) ((uintptr_t) pmm_alloc_ext(list_size / PTM_PAGE_GRANULARITY, PTM_PAGE_GRANULARITY, PMM_MAP_TYPE_USED) + g_globals_boot_info->hhdm_offset);
+
+        size_t node_index = 0;
+        for(size_t page_index = 0; page_index < pagedb_page_count; page_index++) {
+            if((bitmap[page_index / 8] & (1u << (page_index % 8))) == 0) continue;
+
+            uintptr_t paddr = (uintptr_t) pmm_alloc_ext(1, PTM_PAGE_GRANULARITY, PMM_MAP_TYPE_USED);
+            memset((void*) (paddr + g_globals_boot_info->hhdm_offset), 0, PTM_PAGE_GRANULARITY);
+
+            nodes[node_index] = (struct list_node) { .next = nullptr, .page_index = page_index, .paddr = paddr };
+            if(tail == nullptr) {
+                head = &nodes[node_index];
+            } else {
+                tail->next = &nodes[node_index];
+            }
+            tail = &nodes[node_index];
+            node_index++;
+        }
+    }
+
+    struct list_node* node = head;
+    while(node != nullptr) {
+        uintptr_t run_paddr = node->paddr;
+        uintptr_t run_vaddr = pagedb_base + node->page_index * PTM_PAGE_GRANULARITY;
+        size_t run_pages = 1;
+
+        struct list_node* next = node->next;
+        while(next != nullptr && next->page_index == node->page_index + run_pages && next->paddr == run_paddr + run_pages * PTM_PAGE_GRANULARITY) {
+            run_pages++;
+            next = next->next;
+        }
+
+        ptm_map(run_vaddr, (uint64_t) run_paddr, run_pages * PTM_PAGE_GRANULARITY, PTM_FLAG_READ | PTM_FLAG_WRITE);
+        node = next;
+    }
+
 
     log_print("pagedb pages: %zu/%zu present\n", present_count, pagedb_page_count);
 
