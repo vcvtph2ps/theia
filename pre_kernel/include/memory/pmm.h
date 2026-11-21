@@ -1,4 +1,6 @@
 #pragma once
+#include <protocol/bootinfo.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -24,12 +26,23 @@ typedef struct {
     pmm_map_type_t type;
 } pmm_map_entry_t;
 
-#define PMM_MAP_MAX_ENTRIES 1024
+typedef struct pmm_map_node {
+    struct pmm_map_node* next;
+    pmm_map_entry_t entry;
+} pmm_map_node_t;
 
+extern pmm_map_node_t* g_pmm_map_head;
 extern size_t g_pmm_map_size;
-extern pmm_map_entry_t g_pmm_map[PMM_MAP_MAX_ENTRIES];
+
+#define PMM_MAP_FOREACH(NODE) for(pmm_map_node_t* NODE = g_pmm_map_head; (NODE) != nullptr; (NODE) = (NODE)->next)
 
 const char* pmm_entry_type_to_string(pmm_map_type_t type);
+
+void pmm_init(uintptr_t hhdm_offset);
+void pmm_sanitize(void);
+
+bootinfo_mm_type_t pmm_map_type_to_bootinfo(pmm_map_type_t type);
+size_t pmm_map_write_bootinfo(bootinfo_mm_entry_t* entries, size_t capacity);
 
 void pmm_map_add(uint64_t base, uint64_t length, pmm_map_type_t type);
 void pmm_map_set(uint64_t base, uint64_t length, pmm_map_type_t type, bool force);

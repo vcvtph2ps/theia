@@ -27,6 +27,8 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
     log_print("Tartarus protcol version: %u.%u\n", major, minor);
     if(major != 5) { panic("Unsupported Tartarus protocol version\n"); }
 
+    pmm_init(tartarus_boot_info->hhdm_offset);
+
     for(size_t i = 0; i < tartarus_boot_info->mm_entry_count; i++) {
         tartarus_mm_entry_t* mm_entry = &tartarus_boot_info->mm_entries[i];
         pmm_map_type_t type;

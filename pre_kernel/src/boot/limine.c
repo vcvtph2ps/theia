@@ -89,6 +89,9 @@ LIMINE_REQUEST volatile uint64_t g_limine_base_revision[] = LIMINE_BASE_REVISION
         log_print("Limine bootloader info request failed");
     }
 
+    if(g_hhdm_request.response == nullptr) { panic("limine did not provide a higher half direct map"); }
+    pmm_init(g_hhdm_request.response->offset);
+
     for(size_t i = 0; i < g_memmap_request.response->entry_count; i++) {
         struct limine_memmap_entry* mm_entry = g_memmap_request.response->entries[i];
         pmm_map_type_t type;

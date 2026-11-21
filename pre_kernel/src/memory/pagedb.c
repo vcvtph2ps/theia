@@ -31,9 +31,9 @@ void pagedb_setup(uintptr_t kernel_base, size_t pagedb_entry_size, uintptr_t* pf
 
     // @note: the pagedb only ever tracks pages that are actually backed by tracked memory
     size_t system_page_count = 0;
-    for(size_t i = 0; i < g_pmm_map_size; i++) {
-        if(!pagedb_entry_is_tracked(g_pmm_map[i].type)) continue;
-        size_t end = g_pmm_map[i].base + g_pmm_map[i].length;
+    PMM_MAP_FOREACH(node) {
+        if(!pagedb_entry_is_tracked(node->entry.type)) continue;
+        size_t end = node->entry.base + node->entry.length;
         system_page_count = MATH_MAX(system_page_count, MATH_DIV_CEIL(end, PTM_PAGE_GRANULARITY));
     }
 
@@ -55,14 +55,13 @@ void pagedb_setup(uintptr_t kernel_base, size_t pagedb_entry_size, uintptr_t* pf
     uint8_t* bitmap = (uint8_t*) ((uintptr_t) bitmap_phys + g_globals_boot_info->hhdm_offset);
 
     // @note: find which pagedb pages are backed by actual physical memory
-    size_t map_entry_count = g_pmm_map_size;
     for(size_t page_index = 0; page_index < pagedb_page_count; page_index++) {
         uint64_t start_pfn = page_index * entries_per_page;
         uint64_t start_addr = start_pfn * PTM_PAGE_GRANULARITY;
         uint64_t end_addr = MATH_MIN(start_pfn + entries_per_page, system_page_count) * PTM_PAGE_GRANULARITY;
 
-        for(size_t i = 0; i < map_entry_count; i++) {
-            pmm_map_entry_t* entry = &g_pmm_map[i];
+        PMM_MAP_FOREACH(node) {
+            pmm_map_entry_t* entry = &node->entry;
             if(entry->base >= end_addr) break; // map is sorted by base
             if(!pagedb_entry_is_tracked(entry->type)) continue;
             if(entry->base + entry->length > start_addr) {

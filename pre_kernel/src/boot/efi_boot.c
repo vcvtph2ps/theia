@@ -56,22 +56,6 @@ static pmm_map_type_t efi_type_to_pmm(uint32_t type) {
     }
 }
 
-static bootinfo_mm_type_t pmm_type_to_bootinfo(pmm_map_type_t type) {
-    switch(type) {
-        case PMM_MAP_TYPE_FREE:                   [[fallthrough]];
-        case PMM_MAP_TYPE_BOOTLOADER_RECLAIMABLE: [[fallthrough]];
-        case PMM_MAP_TYPE_EFI_RECLAIMABLE:        return BOOTINFO_MM_TYPE_USABLE;
-        case PMM_MAP_TYPE_ALLOCATED:              return BOOTINFO_MM_TYPE_RECLAIMABLE;
-        case PMM_MAP_TYPE_MODULE:                 return BOOTINFO_MM_TYPE_MODULE;
-        case PMM_MAP_TYPE_USED:                   return BOOTINFO_MM_TYPE_USED;
-        case PMM_MAP_TYPE_ACPI_RECLAIMABLE:       return BOOTINFO_MM_TYPE_ACPI_RECLAIMABLE;
-        case PMM_MAP_TYPE_ACPI_NVS:               return BOOTINFO_MM_TYPE_ACPI_NVS;
-        case PMM_MAP_TYPE_RESERVED:               return BOOTINFO_MM_TYPE_RESERVED;
-        case PMM_MAP_TYPE_BAD:                    return BOOTINFO_MM_TYPE_BAD;
-    }
-    return BOOTINFO_MM_TYPE_RESERVED;
-}
-
 static void build_memory_map(const efi_memmap_t* map) {
     for(size_t i = 0; i < map->entry_count; i++) {
         EFI_MEMORY_DESCRIPTOR* descriptor = (EFI_MEMORY_DESCRIPTOR*) ((uintptr_t) map->descriptors + i * map->descriptor_size);
@@ -133,9 +117,9 @@ static void read_framebuffer(void) {
 /// @brief build page tables with identity and higher half direct map
 static void create_boot_mappings(void) {
     uint64_t max_phys = 0;
-    for(size_t i = 0; i < g_pmm_map_size; i++) {
-        if(g_pmm_map[i].type == PMM_MAP_TYPE_RESERVED || g_pmm_map[i].type == PMM_MAP_TYPE_BAD) { continue; }
-        max_phys = MATH_MAX(max_phys, g_pmm_map[i].base + g_pmm_map[i].length);
+    PMM_MAP_FOREACH(node) {
+        if(node->entry.type == PMM_MAP_TYPE_RESERVED || node->entry.type == PMM_MAP_TYPE_BAD) { continue; }
+        max_phys = MATH_MAX(max_phys, node->entry.base + node->entry.length);
     }
     if(max_phys == 0) { return; }
     max_phys = MATH_ALIGN_UP(max_phys, PTM_PAGE_GRANULARITY);
@@ -195,16 +179,11 @@ static bootinfo_t* build_bootinfo(void) {
     uintptr_t cursor_phys = phys + sizeof(bootinfo_t);
     uintptr_t cursor_virt = virt + sizeof(bootinfo_t);
 
-    boot_info->mm_entry_count = g_pmm_map_size;
     boot_info->mm_entries = (bootinfo_mm_entry_t*) cursor_virt;
     bootinfo_mm_entry_t* mm_entries = (bootinfo_mm_entry_t*) cursor_phys;
+    boot_info->mm_entry_count = pmm_map_write_bootinfo(mm_entries, g_pmm_map_size);
     cursor_phys += g_pmm_map_size * sizeof(bootinfo_mm_entry_t);
     cursor_virt += g_pmm_map_size * sizeof(bootinfo_mm_entry_t);
-    for(size_t i = 0; i < g_pmm_map_size; i++) {
-        mm_entries[i].phys_base = g_pmm_map[i].base;
-        mm_entries[i].length = g_pmm_map[i].length;
-        mm_entries[i].type = pmm_type_to_bootinfo(g_pmm_map[i].type);
-    }
 
     boot_info->framebuffer_count = g_has_framebuffer ? 1 : 0;
     boot_info->framebuffers = g_has_framebuffer ? (bootinfo_framebuffer_t*) cursor_virt : nullptr;
@@ -249,6 +228,9 @@ static bootinfo_t* build_bootinfo(void) {
 
     g_stub_boot_info.hhdm_offset = 0;
     g_globals_boot_info = &g_stub_boot_info;
+
+    // @note: we run on the firmware identity map here, so node slabs carved from the map are accessed by physical address
+    pmm_init(0);
 
     efi_memmap_t memmap;
     efi_get_memory_map(&memmap);

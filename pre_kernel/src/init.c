@@ -87,9 +87,10 @@ static void find_serial_from_acpi(void) {
     log_print("Core count: %ld\n", boot_info->core_count);
 
     size_t physical_memory_size = 0;
-    for(size_t i = 0; i < g_pmm_map_size; i++) {
-        pmm_map_entry_t* entry = &g_pmm_map[i];
-        log_print("pmm_entry[%zu]: base=0x%016lx, length=0x%016lx, type=%s (%u)\n", i, entry->base, entry->length, pmm_entry_type_to_string(entry->type), entry->type);
+    size_t pmm_entry_index = 0;
+    PMM_MAP_FOREACH(node) {
+        pmm_map_entry_t* entry = &node->entry;
+        log_print("pmm_entry[%zu]: base=0x%016lx, length=0x%016lx, type=%s (%u)\n", pmm_entry_index++, entry->base, entry->length, pmm_entry_type_to_string(entry->type), entry->type);
         if(entry->type != PMM_MAP_TYPE_RESERVED && entry->type != PMM_MAP_TYPE_BAD) { physical_memory_size += entry->length; }
     }
     log_print("Total physical memory: %zu bytes\n", physical_memory_size);
@@ -107,7 +108,9 @@ static void find_serial_from_acpi(void) {
     log_print("Kernel pagedb entry size: %zu\n", kernel_image_info.kernel_info->pagedb_entry_size);
 
     size_t hhdm_size = 0;
-    for(size_t i = 0; i < g_pmm_map_size; i++) { hhdm_size = MATH_MAX(hhdm_size, g_pmm_map[i].base + g_pmm_map[i].length); }
+    PMM_MAP_FOREACH(node) {
+        hhdm_size = MATH_MAX(hhdm_size, node->entry.base + node->entry.length);
+    }
     boot_info->hhdm_size = hhdm_size;
 
     uintptr_t pfndb_start;
@@ -131,6 +134,7 @@ static void find_serial_from_acpi(void) {
 
     arch_prepare_handoff();
 
+    pmm_sanitize();
     size_t pmm_map_entries = g_pmm_map_size;
     void* memory_map_block;
     while(true) {
@@ -146,28 +150,8 @@ static void find_serial_from_acpi(void) {
         }
     }
 
-    boot_info->mm_entry_count = g_pmm_map_size;
     boot_info->mm_entries = (bootinfo_mm_entry_t*) memory_map_block;
-    for(size_t i = 0; i < g_pmm_map_size; i++) {
-        pmm_map_entry_t* entry = &g_pmm_map[i];
-        bootinfo_mm_type_t type;
-        switch(entry->type) {
-            case PMM_MAP_TYPE_BOOTLOADER_RECLAIMABLE: [[fallthrough]];
-            case PMM_MAP_TYPE_EFI_RECLAIMABLE:        [[fallthrough]];
-            case PMM_MAP_TYPE_FREE:                   type = BOOTINFO_MM_TYPE_USABLE; break;
-            case PMM_MAP_TYPE_ALLOCATED:              type = BOOTINFO_MM_TYPE_RECLAIMABLE; break;
-            case PMM_MAP_TYPE_MODULE:                 type = BOOTINFO_MM_TYPE_MODULE; break;
-            case PMM_MAP_TYPE_USED:                   type = BOOTINFO_MM_TYPE_USED; break;
-            case PMM_MAP_TYPE_ACPI_RECLAIMABLE:       type = BOOTINFO_MM_TYPE_ACPI_RECLAIMABLE; break;
-            case PMM_MAP_TYPE_ACPI_NVS:               type = BOOTINFO_MM_TYPE_ACPI_NVS; break;
-            case PMM_MAP_TYPE_RESERVED:               type = BOOTINFO_MM_TYPE_RESERVED; break;
-            case PMM_MAP_TYPE_BAD:                    type = BOOTINFO_MM_TYPE_BAD; break;
-        }
-
-        boot_info->mm_entries[i].phys_base = entry->base;
-        boot_info->mm_entries[i].length = entry->length;
-        boot_info->mm_entries[i].type = type;
-    }
+    boot_info->mm_entry_count = pmm_map_write_bootinfo((bootinfo_mm_entry_t*) memory_map_block, pmm_map_entries);
 
     g_kernel_entry_point = kernel_image_info.entry_point;
     boot_info->kernel_segments = kernel_image_info.segments;
