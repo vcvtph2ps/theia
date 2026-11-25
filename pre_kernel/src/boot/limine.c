@@ -1,19 +1,17 @@
 #include <boot/boot.h>
-#include <boot/core.h>
+#include <boot/bootinfo.h>
+#include <boot/limine.h>
 #include <init.h>
-#include <lib/math.h>
 #include <limine.h>
 #include <log.h>
 #include <memory/pmm.h>
 #include <memory/ptm.h>
 #include <panic.h>
-#include <protocol/bootinfo.h>
 #include <runtime/mem.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #define LIMINE_REQUEST [[gnu::used, gnu::section(".limine_requests")]]
-[[noreturn, gnu::used]] void prekernel_entry_limine();
 
 LIMINE_REQUEST volatile struct limine_bootloader_info_request g_limine_bootloader_info_request = { .id = LIMINE_BOOTLOADER_INFO_REQUEST_ID, .revision = 0 };
 LIMINE_REQUEST volatile struct limine_framebuffer_request g_framebuffer_request = { .id = LIMINE_FRAMEBUFFER_REQUEST_ID, .revision = 0 };
@@ -74,8 +72,7 @@ LIMINE_REQUEST volatile uint64_t g_limine_base_revision[] = LIMINE_BASE_REVISION
 [[gnu::used, gnu::section(".limine_requests_start")]] volatile uint64_t g_limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 [[gnu::used, gnu::section(".limine_requests_end")]] volatile uint64_t g_limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-
-[[noreturn, gnu::used]] void prekernel_entry_limine() {
+[[noreturn, gnu::used]] void prekernel_entry_limine(void) {
     if(LIMINE_LOADED_BASE_REVISION_VALID(g_limine_base_revision)) {
         log_print("Booted via limine protocol version %ld", LIMINE_LOADED_BASE_REVISION(g_limine_base_revision));
     } else {
@@ -90,8 +87,10 @@ LIMINE_REQUEST volatile uint64_t g_limine_base_revision[] = LIMINE_BASE_REVISION
     }
 
     if(g_hhdm_request.response == nullptr) { panic("limine did not provide a higher half direct map"); }
-    pmm_init(g_hhdm_request.response->offset);
+    const uintptr_t hhdm_offset = g_hhdm_request.response->offset;
+    pmm_init(hhdm_offset);
 
+    if(g_memmap_request.response == nullptr) { panic("limine did not provide a memory map"); }
     for(size_t i = 0; i < g_memmap_request.response->entry_count; i++) {
         struct limine_memmap_entry* mm_entry = g_memmap_request.response->entries[i];
         pmm_map_type_t type;
@@ -110,105 +109,79 @@ LIMINE_REQUEST volatile uint64_t g_limine_base_revision[] = LIMINE_BASE_REVISION
         pmm_map_add(mm_entry->base, mm_entry->length, type);
     }
 
-    size_t boot_info_block_size = sizeof(bootinfo_t);
-    if(g_cmdline_request.response != nullptr) { boot_info_block_size += strlen(g_cmdline_request.response->cmdline) + 1; }
-    if(g_framebuffer_request.response != nullptr) { boot_info_block_size += sizeof(bootinfo_framebuffer_t) * g_framebuffer_request.response->framebuffer_count; }
-    boot_info_block_size += sizeof(bootinfo_module_t) * g_module_request.response->module_count;
+    if(g_module_request.response == nullptr) { panic("limine did not provide modules"); }
+    const size_t module_count = g_module_request.response->module_count;
+    const size_t framebuffer_count = g_framebuffer_request.response == nullptr ? 0 : g_framebuffer_request.response->framebuffer_count;
 
-    for(size_t i = 0; i < g_module_request.response->module_count; i++) { boot_info_block_size += strlen(g_module_request.response->modules[i]->path) + 1; }
+    size_t module_name_bytes = 0;
+    for(size_t i = 0; i < module_count; i++) { module_name_bytes += strlen(g_module_request.response->modules[i]->path) + 1; }
 
-    boot_info_block_size = MATH_ALIGN_UP(boot_info_block_size, PTM_PAGE_GRANULARITY);
+    const char* cmdline = g_cmdline_request.response == nullptr ? nullptr : g_cmdline_request.response->cmdline;
+    const size_t cmdline_size = cmdline == nullptr ? 0 : strlen(cmdline);
+    const size_t command_line_bytes = cmdline == nullptr ? 0 : cmdline_size + 1;
 
-    bootinfo_t* boot_info = (bootinfo_t*) ((uintptr_t) pmm_alloc(boot_info_block_size / PTM_PAGE_GRANULARITY) + g_hhdm_request.response->offset);
-    // set by the prekernel once cpus have been discovered.
-    boot_info->core_count = 1;
-    boot_info->cpus = nullptr;
-    boot_info->boot_timestamp = g_boottime_request.response->timestamp;
-    boot_info->rdsp_physical = 0;
-    boot_info->dtb_physical = 0;
+    size_t block_size = bootinfo_block_size(framebuffer_count, module_count, module_name_bytes, command_line_bytes);
+    uintptr_t physical = (uintptr_t) pmm_alloc(block_size / PTM_PAGE_GRANULARITY);
 
+    uintptr_t rsdp_physical = 0;
     if(g_rsdp_request.response && g_rsdp_request.response->address) {
         log_print("acpi: supported\n");
-        boot_info->rdsp_physical = (uintptr_t) g_rsdp_request.response->address - g_hhdm_request.response->offset;
+        rsdp_physical = (uintptr_t) g_rsdp_request.response->address - hhdm_offset;
     }
+    uintptr_t dtb_physical = 0;
     if(g_dtb_request.response && g_dtb_request.response->dtb_ptr) {
         log_print("dtb: supported\n");
-        boot_info->dtb_physical = (uintptr_t) g_dtb_request.response->dtb_ptr - g_hhdm_request.response->offset;
+        dtb_physical = (uintptr_t) g_dtb_request.response->dtb_ptr - hhdm_offset;
     }
-    boot_info->hhdm_offset = g_hhdm_request.response->offset;
+
+    const uint64_t boot_timestamp = g_boottime_request.response == nullptr ? 0 : g_boottime_request.response->timestamp;
+    bootinfo_builder_t builder;
+    bootinfo_builder_init(&builder, physical, hhdm_offset, hhdm_offset, framebuffer_count, module_count, command_line_bytes);
+    bootinfo_init(builder.info, boot_timestamp, hhdm_offset, rsdp_physical, dtb_physical);
+    bootinfo_builder_set_command_line(&builder, cmdline, cmdline_size);
 
 #if defined(__riscv) && __riscv_xlen == 64
     if(g_riscv_bsp_hartid_request.response) {
         g_boot_bsp_arch_id = g_riscv_bsp_hartid_request.response->bsp_hartid;
         log_print("riscv: boot hart id %lu\n", g_boot_bsp_arch_id);
     }
-
-    boot_info->riscv_base_isa_string = nullptr;
-    boot_info->riscv_extension_count = 0;
-    boot_info->riscv_extentions = nullptr;
-    boot_info->riscv_timebase_frequency = 0;
 #endif
 
-    boot_info->serial = (bootinfo_serial_t) { .type = BOOTINFO_SERIAL_TYPE_NONE };
-
-    uintptr_t boot_info_block_pointer = (uintptr_t) boot_info + sizeof(bootinfo_t);
-    if(g_cmdline_request.response != nullptr) {
-        char* str = (char*) boot_info_block_pointer;
-        size_t len = strlen(g_cmdline_request.response->cmdline) + 1;
-        memcpy(str, g_cmdline_request.response->cmdline, len);
-        boot_info->command_line = str;
-        boot_info_block_pointer += len;
+    builder.info->framebuffer_count = framebuffer_count;
+    builder.info->framebuffers = framebuffer_count == 0 ? nullptr : (bootinfo_framebuffer_t*) bootinfo_builder_store(&builder, builder.framebuffer_cursor);
+    for(size_t i = 0; i < framebuffer_count; i++) {
+        struct limine_framebuffer* limine_fb = g_framebuffer_request.response->framebuffers[i];
+        boot_framebuffer_t framebuffer = {
+            .vaddr = limine_fb->address,
+            .paddr = (uintptr_t) limine_fb->address - hhdm_offset,
+            .size = limine_fb->pitch * limine_fb->height,
+            .width = limine_fb->width,
+            .height = limine_fb->height,
+            .pitch = limine_fb->pitch,
+            .bpp = limine_fb->bpp,
+            .red_position = limine_fb->red_mask_shift,
+            .red_size = limine_fb->red_mask_size,
+            .green_position = limine_fb->green_mask_shift,
+            .green_size = limine_fb->green_mask_size,
+            .blue_position = limine_fb->blue_mask_shift,
+            .blue_size = limine_fb->blue_mask_size,
+        };
+        bootinfo_builder_add_framebuffer(&builder, &framebuffer);
     }
 
-    if(g_framebuffer_request.response != nullptr) {
-        boot_info->framebuffer_count = g_framebuffer_request.response->framebuffer_count;
-        boot_info->framebuffers = (bootinfo_framebuffer_t*) boot_info_block_pointer;
-        for(size_t i = 0; i < g_framebuffer_request.response->framebuffer_count; i++) {
-            bootinfo_framebuffer_t* fb = (bootinfo_framebuffer_t*) boot_info_block_pointer;
-            struct limine_framebuffer* limine_fb = g_framebuffer_request.response->framebuffers[i];
-
-            fb->vaddr = limine_fb->address;
-            fb->paddr = ((uintptr_t) limine_fb->address) - g_hhdm_request.response->offset;
-            fb->size = limine_fb->pitch * limine_fb->height;
-
-            fb->width = limine_fb->width;
-            fb->height = limine_fb->height;
-            fb->pitch = limine_fb->pitch;
-            fb->bpp = limine_fb->bpp;
-
-            fb->red_position = limine_fb->red_mask_shift;
-            fb->red_size = limine_fb->red_mask_size;
-            fb->green_position = limine_fb->green_mask_shift;
-            fb->green_size = limine_fb->green_mask_size;
-            fb->blue_position = limine_fb->blue_mask_shift;
-            fb->blue_size = limine_fb->blue_mask_size;
-
-            boot_info_block_pointer += sizeof(bootinfo_framebuffer_t);
-        }
-    } else {
-        boot_info->framebuffer_count = 0;
-        boot_info->framebuffers = nullptr;
-    }
-
-    boot_info->module_count = g_module_request.response->module_count;
-    boot_info->modules = (bootinfo_module_t*) boot_info_block_pointer;
-    uintptr_t module_name_block = boot_info_block_pointer + sizeof(bootinfo_module_t) * g_module_request.response->module_count;
-
-    for(size_t i = 0; i < g_module_request.response->module_count; i++) {
-        bootinfo_module_t* module = (bootinfo_module_t*) boot_info_block_pointer;
+    builder.info->module_count = module_count;
+    builder.info->modules = (bootinfo_module_t*) bootinfo_builder_store(&builder, builder.module_cursor);
+    for(size_t i = 0; i < module_count; i++) {
         struct limine_file* limine_module = g_module_request.response->modules[i];
-
-        module->name = (char*) module_name_block;
-        module->phys_addr = (uintptr_t) pmm_alloc_ext(MATH_ALIGN_UP(limine_module->size, PTM_PAGE_GRANULARITY) / PTM_PAGE_GRANULARITY, PTM_PAGE_GRANULARITY, PMM_MAP_TYPE_MODULE);
-        module->size = limine_module->size;
-
-        memcpy((void*) module->name, limine_module->path, strlen(limine_module->path) + 1);
-        memcpy((void*) (module->phys_addr + g_hhdm_request.response->offset), (void*) limine_module->address, limine_module->size);
-
-        boot_info_block_pointer += sizeof(bootinfo_module_t);
-        module_name_block += strlen(limine_module->path) + 1;
+        boot_module_t module = {
+            .name = limine_module->path,
+            .data = limine_module->address,
+            .size = limine_module->size,
+            .destination_offset = hhdm_offset,
+        };
+        bootinfo_builder_add_module(&builder, &module);
     }
 
-    prekernel_init(boot_info);
+    prekernel_init(builder.info);
     while(1);
 }

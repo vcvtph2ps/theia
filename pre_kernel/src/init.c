@@ -77,7 +77,7 @@ static void find_serial_from_acpi(void) {
     boot_info->core_count = g_smp_cpu_count;
     boot_info->cpus = g_smp_cpus;
 
-    ptm_init();
+    ptm_init(boot_info->hhdm_offset, boot_info->hhdm_offset);
     ptm_map_framebuffers();
     log_framebuffer_init();
 

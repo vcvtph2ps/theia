@@ -7,7 +7,6 @@
 #include <log.h>
 #include <memory/ptm.h>
 #include <panic.h>
-#include <runtime/mem.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -26,15 +25,7 @@ static bool boot_hartid_from_protocol(uint64_t* out) {
 }
 
 static bool boot_hartid_from_dtb(uint64_t* out) {
-    EFI_GUID dtb_guid = EFI_DTB_TABLE_GUID;
-    const void* fdt = nullptr;
-    for(size_t i = 0; i < g_efi_system_table->NumberOfTableEntries; i++) {
-        EFI_CONFIGURATION_TABLE* table = &g_efi_system_table->ConfigurationTable[i];
-        if(memcmp(&table->VendorGuid, &dtb_guid, sizeof(EFI_GUID)) == 0) {
-            fdt = table->VendorTable;
-            break;
-        }
-    }
+    const void* fdt = (const void*) efi_find_dtb();
     if(fdt == nullptr || fdt_check_header(fdt) != 0) { return false; }
 
     int chosen = fdt_path_offset(fdt, "/chosen");

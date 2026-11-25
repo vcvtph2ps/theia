@@ -30,6 +30,27 @@ void efi_free_pool(void* ptr) {
     g_efi_system_table->BootServices->FreePool(ptr);
 }
 
+uintptr_t efi_find_config_table(const EFI_GUID* guid) {
+    for(size_t i = 0; i < g_efi_system_table->NumberOfTableEntries; i++) {
+        EFI_CONFIGURATION_TABLE* table = &g_efi_system_table->ConfigurationTable[i];
+        if(memcmp(&table->VendorGuid, guid, sizeof(EFI_GUID)) == 0) { return (uintptr_t) table->VendorTable; }
+    }
+    return 0;
+}
+
+uintptr_t efi_find_acpi_rsdp(void) {
+    EFI_GUID acpi20 = ACPI_20_TABLE_GUID;
+    EFI_GUID acpi10 = ACPI_TABLE_GUID;
+    uintptr_t rsdp = efi_find_config_table(&acpi20);
+    if(rsdp == 0) { rsdp = efi_find_config_table(&acpi10); }
+    return rsdp;
+}
+
+uintptr_t efi_find_dtb(void) {
+    EFI_GUID dtb = EFI_DTB_TABLE_GUID;
+    return efi_find_config_table(&dtb);
+}
+
 static void memmap_fetch(efi_memmap_t* out) {
     EFI_BOOT_SERVICES* bs = g_efi_system_table->BootServices;
     UINTN map_size = g_memmap_buffer_size;

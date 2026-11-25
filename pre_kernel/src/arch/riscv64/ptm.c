@@ -51,7 +51,7 @@ static void split_leaf_pte(uint64_t* table, unsigned int idx, int level) {
     uint64_t child_size = PAGE_SIZE_AT_LEVEL(level - 1);
 
     uintptr_t child_table_phys = (uintptr_t) pmm_alloc(1);
-    uint64_t* child_table = (uint64_t*) (child_table_phys + g_globals_boot_info->hhdm_offset);
+    uint64_t* child_table = (uint64_t*) (child_table_phys + g_ptm.access_offset);
     memset(child_table, 0, PTM_PAGE_GRANULARITY);
 
     for(int i = 0; i < 512; i++) {
@@ -70,7 +70,7 @@ static void map_page(uintptr_t root_pa, size_t total_levels, uint64_t vaddr, uin
     if(flags & PTM_FLAG_WRITE) leaf_flags |= PTE_W;
     if(flags & PTM_FLAG_EXEC) leaf_flags |= PTE_X;
 
-    uint64_t* table = (uint64_t*) (root_pa + g_globals_boot_info->hhdm_offset);
+    uint64_t* table = (uint64_t*) (root_pa + g_ptm.access_offset);
 
     for(int level = (int) total_levels; level > target_level; level--) {
         unsigned int idx = VADDR_VPN(vaddr, level);
@@ -78,7 +78,7 @@ static void map_page(uintptr_t root_pa, size_t total_levels, uint64_t vaddr, uin
 
         if(!(entry & PTE_V)) {
             void* child_phys = pmm_alloc(1);
-            memset((void*) ((uintptr_t) child_phys + g_globals_boot_info->hhdm_offset), 0, PTM_PAGE_GRANULARITY);
+            memset((void*) ((uintptr_t) child_phys + g_ptm.access_offset), 0, PTM_PAGE_GRANULARITY);
             entry = (PA_TO_PPN(child_phys) << PTE_PPN_SHIFT) | PTE_V;
             table[idx] = entry;
         } else if(entry & (PTE_R | PTE_W | PTE_X)) {
@@ -86,7 +86,7 @@ static void map_page(uintptr_t root_pa, size_t total_levels, uint64_t vaddr, uin
             entry = table[idx];
         }
 
-        table = (uint64_t*) (PTE_TO_PA(entry) + g_globals_boot_info->hhdm_offset);
+        table = (uint64_t*) (PTE_TO_PA(entry) + g_ptm.access_offset);
     }
 
     unsigned int idx = VADDR_VPN(vaddr, target_level);
@@ -101,23 +101,25 @@ static int choose_target_level(uint64_t vaddr, uint64_t paddr, uint64_t remain, 
     return 1;
 }
 
-static void ptm_init_common(size_t level_count) {
+static void ptm_init_common(size_t level_count, uintptr_t hhdm_offset, uintptr_t access_offset) {
+    g_ptm.hhdm_offset = hhdm_offset;
+    g_ptm.access_offset = access_offset;
     g_level_count = level_count;
     g_ptm.level_count = g_level_count;
 
     void* root = pmm_alloc(1);
-    memset((void*) ((uintptr_t) root + g_globals_boot_info->hhdm_offset), 0, PTM_PAGE_GRANULARITY);
+    memset((void*) ((uintptr_t) root + g_ptm.access_offset), 0, PTM_PAGE_GRANULARITY);
     g_ptm.tplt = (uintptr_t) root;
 
     log_print("ptm: root_pa=0x%lx  level_count=%zu\n", g_ptm.tplt, g_level_count);
 }
 
-void ptm_init() {
-    ptm_init_common(detect_max_level_count());
+void ptm_init(uintptr_t hhdm_offset, uintptr_t access_offset) {
+    ptm_init_common(detect_max_level_count(), hhdm_offset, access_offset);
 }
 
-void ptm_init_at_level(size_t level_count) {
-    ptm_init_common(level_count);
+void ptm_init_at_level(size_t level_count, uintptr_t hhdm_offset, uintptr_t access_offset) {
+    ptm_init_common(level_count, hhdm_offset, access_offset);
 }
 
 void ptm_map(uint64_t vaddr, uint64_t paddr, uint64_t length, uint8_t flags) {
@@ -204,7 +206,7 @@ void ptm_create_hhdm_mappings() {
         // framebuffers are mapped separately at MEMORY_FRAMEBUFFER_START
         if(range_overlaps_framebuffer(base, length)) continue;
 
-        ptm_map(g_globals_boot_info->hhdm_offset + base, base, length, PTM_FLAG_READ | PTM_FLAG_WRITE);
+        ptm_map(g_ptm.hhdm_offset + base, base, length, PTM_FLAG_READ | PTM_FLAG_WRITE);
     }
 
     pmm_free_snapshot(&snapshot);

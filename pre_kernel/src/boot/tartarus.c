@@ -1,25 +1,18 @@
 #include <boot/boot.h>
-#include <boot/core.h>
+#include <boot/bootinfo.h>
+#include <boot/tartarus.h>
 #include <init.h>
-#include <lib/math.h>
 #include <log.h>
 #include <memory/pmm.h>
 #include <memory/ptm.h>
 #include <panic.h>
-#include <protocol/bootinfo.h>
 #include <runtime/mem.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <tartarus.h>
 
-static tartarus_boot_info_t* g_tartarus_boot_info;
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-prototypes"
-
 __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer bug
 [[noreturn, gnu::used]] void prekernel_entry_tartarus(tartarus_boot_info_t* tartarus_boot_info, uint16_t version) {
-    g_tartarus_boot_info = tartarus_boot_info;
     uint8_t major = version >> 8;
     uint8_t minor = version & 0xff;
 
@@ -27,7 +20,8 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
     log_print("Tartarus protcol version: %u.%u\n", major, minor);
     if(major != 5) { panic("Unsupported Tartarus protocol version\n"); }
 
-    pmm_init(tartarus_boot_info->hhdm_offset);
+    const uintptr_t hhdm_offset = tartarus_boot_info->hhdm_offset;
+    pmm_init(hhdm_offset);
 
     for(size_t i = 0; i < tartarus_boot_info->mm_entry_count; i++) {
         tartarus_mm_entry_t* mm_entry = &tartarus_boot_info->mm_entries[i];
@@ -47,28 +41,18 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
         pmm_map_add(mm_entry->base, mm_entry->length, type);
     }
 
-    size_t boot_info_block_size = sizeof(bootinfo_t);
-    boot_info_block_size += sizeof(bootinfo_framebuffer_t) * tartarus_boot_info->framebuffer_count;
-    boot_info_block_size += sizeof(bootinfo_module_t) * tartarus_boot_info->module_count;
+    size_t module_name_bytes = 0;
+    for(size_t i = 0; i < tartarus_boot_info->module_count; i++) { module_name_bytes += strlen(tartarus_boot_info->modules[i].name) + 1; }
 
-    for(size_t i = 0; i < tartarus_boot_info->module_count; i++) { boot_info_block_size += strlen(tartarus_boot_info->modules[i].name) + 1; }
+    size_t block_size = bootinfo_block_size(tartarus_boot_info->framebuffer_count, tartarus_boot_info->module_count, module_name_bytes, 0);
+    uintptr_t physical = (uintptr_t) pmm_alloc(block_size / PTM_PAGE_GRANULARITY);
 
-    boot_info_block_size = MATH_ALIGN_UP(boot_info_block_size, PTM_PAGE_GRANULARITY);
+    bootinfo_builder_t builder;
+    bootinfo_builder_init(&builder, physical, hhdm_offset, hhdm_offset, tartarus_boot_info->framebuffer_count, tartarus_boot_info->module_count, 0);
+    bootinfo_init(builder.info, tartarus_boot_info->boot_timestamp, hhdm_offset, tartarus_boot_info->acpi_rsdp_address, tartarus_boot_info->device_tree_address);
 
-    bootinfo_t* boot_info = (bootinfo_t*) ((uintptr_t) pmm_alloc(boot_info_block_size / PTM_PAGE_GRANULARITY) + tartarus_boot_info->hhdm_offset);
-    // set by the prekernel once cpus have been discovered.
-    boot_info->core_count = 1;
-    boot_info->cpus = nullptr;
-    boot_info->boot_timestamp = tartarus_boot_info->boot_timestamp;
-    boot_info->command_line = nullptr;
-
-    boot_info->rdsp_physical = tartarus_boot_info->acpi_rsdp_address;
-    boot_info->dtb_physical = tartarus_boot_info->device_tree_address;
-
-    boot_info->hhdm_offset = tartarus_boot_info->hhdm_offset;
-
-    if(boot_info->rdsp_physical) { log_print("acpi: supported\n"); }
-    if(boot_info->dtb_physical) { log_print("dtb: supported\n"); }
+    if(builder.info->rdsp_physical) { log_print("acpi: supported\n"); }
+    if(builder.info->dtb_physical) { log_print("dtb: supported\n"); }
 
 #if defined(__riscv) && __riscv_xlen == 64
     for(size_t i = 0; i < tartarus_boot_info->cpu_count; i++) {
@@ -77,65 +61,43 @@ __attribute__((no_sanitize("undefined"))) // @todo: tartarus misaligned pointer 
             log_print("riscv: boot hart id %lu\n", g_boot_bsp_arch_id);
         }
     }
-
-    boot_info->riscv_base_isa_string = nullptr;
-    boot_info->riscv_extension_count = 0;
-    boot_info->riscv_extentions = nullptr;
-    boot_info->riscv_timebase_frequency = 0;
 #endif
 
-    boot_info->serial = (bootinfo_serial_t) { .type = BOOTINFO_SERIAL_TYPE_NONE };
-
-    uintptr_t boot_info_block_pointer = (uintptr_t) boot_info + sizeof(bootinfo_t);
-
-    boot_info->framebuffer_count = tartarus_boot_info->framebuffer_count;
-    boot_info->framebuffers = (bootinfo_framebuffer_t*) boot_info_block_pointer;
+    builder.info->framebuffer_count = tartarus_boot_info->framebuffer_count;
+    builder.info->framebuffers = (bootinfo_framebuffer_t*) bootinfo_builder_store(&builder, builder.framebuffer_cursor);
     for(size_t i = 0; i < tartarus_boot_info->framebuffer_count; i++) {
-        bootinfo_framebuffer_t* framebuffer = (bootinfo_framebuffer_t*) boot_info_block_pointer;
-        tartarus_framebuffer_t* tartarus_framebuffer = &tartarus_boot_info->framebuffers[i];
-
-        framebuffer->vaddr = tartarus_framebuffer->vaddr;
-        framebuffer->paddr = tartarus_framebuffer->paddr;
-        framebuffer->size = tartarus_framebuffer->size;
-
-        framebuffer->width = tartarus_framebuffer->width;
-        framebuffer->height = tartarus_framebuffer->height;
-        framebuffer->pitch = tartarus_framebuffer->pitch;
-        framebuffer->bpp = tartarus_framebuffer->bpp;
-
-        framebuffer->red_position = tartarus_framebuffer->mask.red_position;
-        framebuffer->red_size = tartarus_framebuffer->mask.red_size;
-        framebuffer->green_position = tartarus_framebuffer->mask.green_position;
-        framebuffer->green_size = tartarus_framebuffer->mask.green_size;
-        framebuffer->blue_position = tartarus_framebuffer->mask.blue_position;
-        framebuffer->blue_size = tartarus_framebuffer->mask.blue_size;
-
-        boot_info_block_pointer += sizeof(bootinfo_framebuffer_t);
+        tartarus_framebuffer_t* tartarus_fb = &tartarus_boot_info->framebuffers[i];
+        boot_framebuffer_t framebuffer = {
+            .vaddr = (void*) tartarus_fb->vaddr,
+            .paddr = tartarus_fb->paddr,
+            .size = tartarus_fb->size,
+            .width = tartarus_fb->width,
+            .height = tartarus_fb->height,
+            .pitch = tartarus_fb->pitch,
+            .bpp = tartarus_fb->bpp,
+            .red_position = tartarus_fb->mask.red_position,
+            .red_size = tartarus_fb->mask.red_size,
+            .green_position = tartarus_fb->mask.green_position,
+            .green_size = tartarus_fb->mask.green_size,
+            .blue_position = tartarus_fb->mask.blue_position,
+            .blue_size = tartarus_fb->mask.blue_size,
+        };
+        bootinfo_builder_add_framebuffer(&builder, &framebuffer);
     }
 
-
-    boot_info->module_count = tartarus_boot_info->module_count;
-    boot_info->modules = (bootinfo_module_t*) boot_info_block_pointer;
-
-    uintptr_t module_name_block = boot_info_block_pointer + sizeof(bootinfo_module_t) * tartarus_boot_info->module_count;
-
+    builder.info->module_count = tartarus_boot_info->module_count;
+    builder.info->modules = (bootinfo_module_t*) bootinfo_builder_store(&builder, builder.module_cursor);
     for(size_t i = 0; i < tartarus_boot_info->module_count; i++) {
-        bootinfo_module_t* module = (bootinfo_module_t*) boot_info_block_pointer;
-        tartarus_module_t* tartarus_module = &g_tartarus_boot_info->modules[i];
-
-        module->name = (char*) module_name_block;
-        module->phys_addr = (uintptr_t) pmm_alloc_ext(MATH_ALIGN_UP(tartarus_module->size, PTM_PAGE_GRANULARITY) / PTM_PAGE_GRANULARITY, PTM_PAGE_GRANULARITY, PMM_MAP_TYPE_MODULE);
-        module->size = tartarus_module->size;
-
-        memcpy((void*) module->name, tartarus_module->name, strlen(tartarus_module->name) + 1);
-        memcpy((void*) (module->phys_addr + tartarus_boot_info->hhdm_offset), (void*) (tartarus_module->paddr + tartarus_boot_info->hhdm_offset), tartarus_module->size);
-
-        boot_info_block_pointer += sizeof(bootinfo_module_t);
-        module_name_block += strlen(tartarus_module->name) + 1;
+        tartarus_module_t* tartarus_module = &tartarus_boot_info->modules[i];
+        boot_module_t module = {
+            .name = tartarus_module->name,
+            .data = (void*) (uintptr_t) (tartarus_module->paddr + hhdm_offset),
+            .size = tartarus_module->size,
+            .destination_offset = hhdm_offset,
+        };
+        bootinfo_builder_add_module(&builder, &module);
     }
 
-    prekernel_init(boot_info);
+    prekernel_init(builder.info);
     while(1);
 }
-
-#pragma clang diagnostic pop

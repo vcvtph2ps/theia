@@ -34,6 +34,10 @@ bool arch_probe_serial(bootinfo_serial_t* out) {
 }
 
 void arch_init_early() {
+    static bool initialized = false;
+    if(initialized) { return; }
+    initialized = true;
+
     arch_16550uart_early_setup();
     arch_setup_page_table_attributes();
 }

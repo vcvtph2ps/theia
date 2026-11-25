@@ -27,15 +27,19 @@ typedef enum : uint64_t {
 typedef struct {
     uintptr_t tplt;
     size_t level_count;
+    uintptr_t hhdm_offset;
+    uintptr_t access_offset;
 } ptm_t;
 
 extern ptm_t g_ptm;
 
 /// @brief Initialise the ptm, uses the highest level count the cpu supports
-void ptm_init();
+/// @param hhdm_offset Offset that will be used for the higher half direct map
+/// @param access_offset Offset used to reach physical page table memory right now
+void ptm_init(uintptr_t hhdm_offset, uintptr_t access_offset);
 
-/// @brief Initialise the ptm with a specific paging level count.
-void ptm_init_at_level(size_t level_count);
+/// @brief Initialise the ptm with a specific paging level count
+void ptm_init_at_level(size_t level_count, uintptr_t hhdm_offset, uintptr_t access_offset);
 void ptm_map_framebuffers();
 void ptm_map(uint64_t vaddr, uint64_t paddr, uint64_t length, uint8_t flags);
 void ptm_map_at(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t paddr, uint64_t length, uint8_t flags);

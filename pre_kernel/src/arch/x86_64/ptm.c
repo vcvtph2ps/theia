@@ -36,9 +36,12 @@ static bool g_x86_64_cpu_nx_support = false;
 static bool g_x86_64_cpu_pdpe1gb_support = false;
 [[gnu::used]] bool g_x86_64_cpu_la57_support = false;
 
-static void ptm_init_common(size_t level_count) {
+static void ptm_init_common(size_t level_count, uintptr_t hhdm_offset, uintptr_t access_offset) {
+    g_ptm.hhdm_offset = hhdm_offset;
+    g_ptm.access_offset = access_offset;
+
     uintptr_t top_pagemap = (uintptr_t) pmm_alloc(1);
-    memset((void*) (top_pagemap + g_globals_boot_info->hhdm_offset), 0, PTM_PAGE_GRANULARITY);
+    memset((void*) (top_pagemap + g_ptm.access_offset), 0, PTM_PAGE_GRANULARITY);
     g_x86_64_cpu_nx_support = arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_NX_PAGES);
     g_x86_64_cpu_pdpe1gb_support = arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_PDPE1GB_PAGES);
     g_x86_64_cpu_la57_support = arch_cpuid_is_feature_supported(ARCH_CPUID_FEATURE_LA57);
@@ -50,12 +53,12 @@ static void ptm_init_common(size_t level_count) {
     log_print("ptm init: levels=%zu, nx=%s, pdpe1gb=%s\n", g_ptm.level_count, g_x86_64_cpu_nx_support ? "available" : "not available", g_x86_64_cpu_pdpe1gb_support ? "available" : "not available");
 }
 
-void ptm_init() {
-    ptm_init_common(0);
+void ptm_init(uintptr_t hhdm_offset, uintptr_t access_offset) {
+    ptm_init_common(0, hhdm_offset, access_offset);
 }
 
-void ptm_init_at_level(size_t level_count) {
-    ptm_init_common(level_count);
+void ptm_init_at_level(size_t level_count, uintptr_t hhdm_offset, uintptr_t access_offset) {
+    ptm_init_common(level_count, hhdm_offset, access_offset);
 }
 
 
@@ -84,7 +87,7 @@ static void split_huge_page(uint64_t* table, int index, int level) {
     uint64_t child_flags = entry & (ENTRY_FLAG_PRESENT | ENTRY_FLAG_RW | ENTRY_FLAG_USER | ENTRY_FLAG_PWT | ENTRY_FLAG_PCD | ENTRY_FLAG_ACCESSED | ENTRY_FLAG_DIRTY | ENTRY_FLAG_GLOBAL | ENTRY_FLAG_NX);
 
     uintptr_t child_table_phys = (uintptr_t) pmm_alloc(1);
-    uint64_t* child_table = (uint64_t*) (child_table_phys + g_globals_boot_info->hhdm_offset);
+    uint64_t* child_table = (uint64_t*) (child_table_phys + g_ptm.access_offset);
     memset(child_table, 0, PTM_PAGE_GRANULARITY);
 
     for(int i = 0; i < 512; i++) {
@@ -117,14 +120,14 @@ static void map_page(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t
         case PTM_PAGE_SIZE_1G: lowest_level = 3; break;
     }
 
-    uint64_t* current_table = (uint64_t*) (cr3 + g_globals_boot_info->hhdm_offset);
+    uint64_t* current_table = (uint64_t*) (cr3 + g_ptm.access_offset);
     for(int level = level_count; level > lowest_level; level--) {
         int index = VADDR_TO_INDEX(vaddr, level);
 
         uint64_t entry = current_table[index];
         if((entry & ENTRY_FLAG_PRESENT) == 0) {
             uint64_t* new_table = pmm_alloc(1);
-            memset((void*) (((uintptr_t) new_table) + g_globals_boot_info->hhdm_offset), 0, PTM_PAGE_GRANULARITY);
+            memset((void*) (((uintptr_t) new_table) + g_ptm.access_offset), 0, PTM_PAGE_GRANULARITY);
             entry = ENTRY_FLAG_PRESENT | ((uint64_t) (uintptr_t) new_table & ENTRY_4K_ADDRESS_MASK);
         } else if((entry & ENTRYH_FLAG_PS) != 0) {
             split_huge_page(current_table, index, level);
@@ -135,7 +138,7 @@ static void map_page(uintptr_t cr3, size_t level_count, uint64_t vaddr, uint64_t
         if(rw) entry |= ENTRY_FLAG_RW;
         if(current_table[index] != entry) current_table[index] = entry;
 
-        current_table = (uint64_t*) ((entry & ENTRY_4K_ADDRESS_MASK) + g_globals_boot_info->hhdm_offset);
+        current_table = (uint64_t*) ((entry & ENTRY_4K_ADDRESS_MASK) + g_ptm.access_offset);
     }
 
     int index = VADDR_TO_INDEX(vaddr, lowest_level);
@@ -235,7 +238,7 @@ void ptm_create_hhdm_mappings() {
         // framebuffers are mapped separately at MEMORY_FRAMEBUFFER_START
         if(range_overlaps_framebuffer(base, length)) continue;
 
-        ptm_map(g_globals_boot_info->hhdm_offset + base, base, length, PTM_FLAG_READ | PTM_FLAG_WRITE);
+        ptm_map(g_ptm.hhdm_offset + base, base, length, PTM_FLAG_READ | PTM_FLAG_WRITE);
     }
 
     pmm_free_snapshot(&snapshot);

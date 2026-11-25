@@ -1,21 +1,18 @@
 #include <arch.h>
+#include <boot/bootinfo.h>
 #include <boot/efi.h>
 #include <efi.h>
-#include <globals.h>
 #include <init.h>
 #include <lib/math.h>
 #include <log.h>
 #include <memory/pmm.h>
 #include <memory/ptm.h>
 #include <panic.h>
-#include <protocol/bootinfo.h>
 #include <runtime/mem.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #define EFI_HHDM_OFFSET ((uintptr_t) MEMORY_KERNELSPACE_START)
-
-static bootinfo_t g_stub_boot_info;
 
 typedef struct {
     const CHAR16* efi_path;
@@ -24,23 +21,17 @@ typedef struct {
 
 static const efi_module_def_t g_module_defs[] = {
     { u"\\boot\\initramfs.rdk.zst", "/boot/initramfs.rdk.zst" },
-    { u"\\boot\\kernel.ksym",      "/boot/kernel.ksym"      },
+    { u"\\boot\\kernel.ksym",       "/boot/kernel.ksym"       },
 };
 #define EFI_MODULE_COUNT (sizeof(g_module_defs) / sizeof(g_module_defs[0]))
 
-typedef struct {
-    uintptr_t phys;
-    size_t size;
-    const char* name;
-} efi_module_t;
-
-static efi_module_t g_modules[EFI_MODULE_COUNT];
+static boot_module_t g_modules[EFI_MODULE_COUNT];
 
 static char* g_cmdline_data = nullptr;
 static size_t g_cmdline_size = 0;
 
 static bool g_has_framebuffer = false;
-static bootinfo_framebuffer_t g_framebuffer;
+static boot_framebuffer_t g_framebuffer;
 
 static pmm_map_type_t efi_type_to_pmm(uint32_t type) {
     switch(type) {
@@ -82,15 +73,23 @@ static void load_modules(void) {
         size_t size = 0;
         (void) efi_read_file(g_module_defs[i].efi_path, &data, &size);
 
-        size_t page_count = MATH_ALIGN_UP(size, PTM_PAGE_GRANULARITY) / PTM_PAGE_GRANULARITY;
-        void* phys = pmm_alloc_ext(page_count, PTM_PAGE_GRANULARITY, PMM_MAP_TYPE_MODULE);
-        memcpy((void*) ((uintptr_t) phys + g_stub_boot_info.hhdm_offset), data, size);
-        efi_free_pool(data);
+        g_modules[i] = (boot_module_t) {
+            .name = g_module_defs[i].boot_name,
+            .data = data,
+            .size = size,
+            .destination_offset = 0,
+        };
+    }
+}
 
-        g_modules[i].phys = (uintptr_t) phys;
-        g_modules[i].size = size;
-        g_modules[i].name = g_module_defs[i].boot_name;
-        log_print("module %s: phys=0x%lx size=0x%lx\n", g_modules[i].name, g_modules[i].phys, g_modules[i].size);
+static void release_loaded_files(void) {
+    for(size_t i = 0; i < EFI_MODULE_COUNT; i++) {
+        efi_free_pool((void*) g_modules[i].data);
+        g_modules[i].data = nullptr;
+    }
+    if(g_cmdline_data != nullptr) {
+        efi_free_pool(g_cmdline_data);
+        g_cmdline_data = nullptr;
     }
 }
 
@@ -130,92 +129,33 @@ static void create_boot_mappings(void) {
     ptm_map(EFI_HHDM_OFFSET, 0, max_phys, PTM_FLAG_READ | PTM_FLAG_WRITE);
 }
 
-static uintptr_t find_config_table(const EFI_GUID* guid) {
-    for(size_t i = 0; i < g_efi_system_table->NumberOfTableEntries; i++) {
-        EFI_CONFIGURATION_TABLE* table = &g_efi_system_table->ConfigurationTable[i];
-        if(memcmp(&table->VendorGuid, guid, sizeof(EFI_GUID)) == 0) { return (uintptr_t) table->VendorTable; }
-    }
-    return 0;
-}
-
-static uintptr_t find_acpi_rsdp(void) {
-    EFI_GUID acpi20 = ACPI_20_TABLE_GUID;
-    EFI_GUID acpi10 = ACPI_TABLE_GUID;
-    uintptr_t rsdp = find_config_table(&acpi20);
-    if(rsdp == 0) { rsdp = find_config_table(&acpi10); }
-    return rsdp;
-}
-
-static uintptr_t find_dtb(void) {
-    EFI_GUID dtb = EFI_DTB_TABLE_GUID;
-    return find_config_table(&dtb);
-}
-
 static bootinfo_t* build_bootinfo(void) {
-    size_t names_size = 0;
-    for(size_t i = 0; i < EFI_MODULE_COUNT; i++) { names_size += strlen(g_modules[i].name) + 1; }
+    size_t module_name_bytes = 0;
+    for(size_t i = 0; i < EFI_MODULE_COUNT; i++) { module_name_bytes += strlen(g_modules[i].name) + 1; }
 
-    size_t block_size = sizeof(bootinfo_t);
-    block_size += g_pmm_map_size * sizeof(bootinfo_mm_entry_t);
-    block_size += (g_has_framebuffer ? 1 : 0) * sizeof(bootinfo_framebuffer_t);
-    block_size += EFI_MODULE_COUNT * sizeof(bootinfo_module_t);
-    block_size += names_size;
-    block_size += g_cmdline_size + 1;
-    block_size = MATH_ALIGN_UP(block_size, PTM_PAGE_GRANULARITY);
+    const size_t command_line_bytes = g_cmdline_size + 1;
+    size_t block_size = bootinfo_block_size(g_has_framebuffer ? 1 : 0, EFI_MODULE_COUNT, module_name_bytes, command_line_bytes);
+    uintptr_t physical = (uintptr_t) pmm_alloc(block_size / PTM_PAGE_GRANULARITY);
 
-    uintptr_t phys = (uintptr_t) pmm_alloc(block_size / PTM_PAGE_GRANULARITY);
     // @note: we are still running on firmware page tables, so write through the identity mapping. we only store direct map addresses inside the block
-    uintptr_t virt = phys + EFI_HHDM_OFFSET;
-    bootinfo_t* boot_info = (bootinfo_t*) phys;
-    memset((void*) phys, 0, block_size);
+    bootinfo_builder_t builder;
+    bootinfo_builder_init(&builder, physical, EFI_HHDM_OFFSET, 0, g_has_framebuffer ? 1 : 0, EFI_MODULE_COUNT, command_line_bytes);
+    bootinfo_init(builder.info, 0, EFI_HHDM_OFFSET, efi_find_acpi_rsdp(), efi_find_dtb());
 
-    boot_info->core_count = 1;
-    boot_info->cpus = nullptr;
-    boot_info->boot_timestamp = 0;
-    boot_info->hhdm_offset = EFI_HHDM_OFFSET;
-    boot_info->rdsp_physical = find_acpi_rsdp();
-    boot_info->dtb_physical = find_dtb();
+    builder.info->framebuffer_count = g_has_framebuffer ? 1 : 0;
+    builder.info->framebuffers = g_has_framebuffer ? (bootinfo_framebuffer_t*) bootinfo_builder_store(&builder, builder.framebuffer_cursor) : nullptr;
+    if(g_has_framebuffer) { bootinfo_builder_add_framebuffer(&builder, &g_framebuffer); }
 
-    uintptr_t cursor_phys = phys + sizeof(bootinfo_t);
-    uintptr_t cursor_virt = virt + sizeof(bootinfo_t);
-
-    boot_info->mm_entries = (bootinfo_mm_entry_t*) cursor_virt;
-    bootinfo_mm_entry_t* mm_entries = (bootinfo_mm_entry_t*) cursor_phys;
-    boot_info->mm_entry_count = pmm_map_write_bootinfo(mm_entries, g_pmm_map_size);
-    cursor_phys += g_pmm_map_size * sizeof(bootinfo_mm_entry_t);
-    cursor_virt += g_pmm_map_size * sizeof(bootinfo_mm_entry_t);
-
-    boot_info->framebuffer_count = g_has_framebuffer ? 1 : 0;
-    boot_info->framebuffers = g_has_framebuffer ? (bootinfo_framebuffer_t*) cursor_virt : nullptr;
-    if(g_has_framebuffer) {
-        memcpy((void*) cursor_phys, &g_framebuffer, sizeof(bootinfo_framebuffer_t));
-        cursor_phys += sizeof(bootinfo_framebuffer_t);
-        cursor_virt += sizeof(bootinfo_framebuffer_t);
-    }
-
-    boot_info->module_count = EFI_MODULE_COUNT;
-    boot_info->modules = (bootinfo_module_t*) cursor_virt;
-    bootinfo_module_t* modules = (bootinfo_module_t*) cursor_phys;
-    cursor_phys += EFI_MODULE_COUNT * sizeof(bootinfo_module_t);
-    cursor_virt += EFI_MODULE_COUNT * sizeof(bootinfo_module_t);
+    builder.info->module_count = EFI_MODULE_COUNT;
+    builder.info->modules = (bootinfo_module_t*) bootinfo_builder_store(&builder, builder.module_cursor);
     for(size_t i = 0; i < EFI_MODULE_COUNT; i++) {
-        modules[i].phys_addr = g_modules[i].phys;
-        modules[i].size = g_modules[i].size;
-        modules[i].name = (char*) cursor_virt;
-
-        size_t len = strlen(g_modules[i].name) + 1;
-        memcpy((void*) cursor_phys, g_modules[i].name, len);
-        cursor_phys += len;
-        cursor_virt += len;
+        uintptr_t phys = bootinfo_builder_add_module(&builder, &g_modules[i]);
+        log_print("module %s: phys=0x%lx size=0x%lx\n", g_modules[i].name, phys, g_modules[i].size);
     }
 
-    boot_info->command_line = (char*) cursor_virt;
-    if(g_cmdline_size > 0) { memcpy((void*) cursor_phys, g_cmdline_data, g_cmdline_size); }
-    ((char*) cursor_phys)[g_cmdline_size] = '\0';
-    cursor_phys += g_cmdline_size + 1;
-    cursor_virt += g_cmdline_size + 1;
+    bootinfo_builder_set_command_line(&builder, g_cmdline_data == nullptr ? "" : g_cmdline_data, g_cmdline_size);
 
-    return (bootinfo_t*) phys;
+    return builder.info;
 }
 
 [[noreturn]] void prekernel_efi_boot(void) {
@@ -226,9 +166,6 @@ static bootinfo_t* build_bootinfo(void) {
     arch_efi_discover_boot_hartid();
 #endif
 
-    g_stub_boot_info.hhdm_offset = 0;
-    g_globals_boot_info = &g_stub_boot_info;
-
     // @note: we run on the firmware identity map here, so node slabs carved from the map are accessed by physical address
     pmm_init(0);
 
@@ -236,7 +173,7 @@ static bootinfo_t* build_bootinfo(void) {
     efi_get_memory_map(&memmap);
     build_memory_map(&memmap);
 
-    ptm_init_at_level(arch_efi_paging_level());
+    ptm_init_at_level(arch_efi_paging_level(), EFI_HHDM_OFFSET, 0);
     create_boot_mappings();
 
     load_modules();
@@ -244,6 +181,7 @@ static bootinfo_t* build_bootinfo(void) {
     read_framebuffer();
 
     bootinfo_t* boot_info = build_bootinfo();
+    release_loaded_files();
 
     log_print("exiting boot services\n");
 

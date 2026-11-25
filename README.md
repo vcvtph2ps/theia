@@ -1,8 +1,8 @@
 # Theia
 
-Stupid prekernel for [Lunar](https://github.com/vcvtph2ps/lunar)
+Stupid prekernel for [Lunar](https://github.com/vcvtph2ps/lunar). Handles setting up machine state and the pagedb
 
-Handles setting up machine state and pagedb stuff
+The same code is shipped in three boot paths:
 
 Currently only supports x86_64 and riscv64 but may support other architectures in the future.
 
